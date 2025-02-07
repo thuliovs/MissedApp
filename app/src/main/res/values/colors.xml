@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material Design 3 colors - Sleep Theme -->
+    <color name="primary">#FF2D3F7E</color>          <!-- Deep Night Blue -->
+    <color name="primary_dark">#FF1A2251</color>     <!-- Darker Night Blue -->
+    <color name="accent">#FF8B8FE8</color>          <!-- Soft Lavender -->
+    <color name="background_dark">#FF0A1023</color>  <!-- Deep Night Sky -->
+    <color name="surface_dark">#FF141B35</color>     <!-- Night Surface -->
+    <color name="text_primary">#FFECF0FF</color>     <!-- Moonlight White -->
+    <color name="text_secondary">#BFB8C3E6</color>   <!-- Soft Starlight -->
+    
+    <!-- Accent Colors -->
+    <color name="accent_secondary">#FF6B72B7</color> <!-- Twilight Purple -->
+    <color name="accent_tertiary">#FF4A5090</color>  <!-- Dusk Blue -->
+
+    <!-- Default Android colors (required by the theme) -->
+    <color name="purple_200">#FF8B8FE8</color>
+    <color name="purple_500">#FF2D3F7E</color>
+    <color name="purple_700">#FF1A2251</color>
+    <color name="teal_200">#FF6B72B7</color>
+    <color name="teal_700">#FF4A5090</color>
+    <color name="black">#FF0A1023</color>
+    <color name="white">#FFECF0FF</color>
+
+    <!-- Launcher Icon Colors -->
+    <color name="ic_launcher_background">#FF0A1023</color>  <!-- Usando o valor direto ao invés da referência -->
+</resources>
