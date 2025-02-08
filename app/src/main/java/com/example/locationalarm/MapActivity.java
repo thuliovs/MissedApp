@@ -20,7 +20,6 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 
 public class MapActivity extends AppCompatActivity implements OnMapReadyCallback {
@@ -29,24 +28,25 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     private FusedLocationProviderClient fusedLocationClient;
     private LatLng selectedLocation;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
+    private View loadingOverlay;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_map);
 
-        // Initialize views
-        setupToolbar();
+        loadingOverlay = findViewById(R.id.loading_overlay);
+        
+        // Inicializar location services antes do mapa
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        
+        // Carregar localização atual em paralelo
+        if (checkLocationPermission()) {
+            loadLastLocation();
+        }
+
         setupMapFragment();
         setupConfirmButton();
-
-        // Initialize location services
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-    }
-
-    private void setupToolbar() {
-        MaterialToolbar toolbar = findViewById(R.id.toolbar);
-        toolbar.setNavigationOnClickListener(v -> finish());
     }
 
     private void setupMapFragment() {
@@ -66,11 +66,27 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         });
     }
 
+    private void loadLastLocation() {
+        if (ActivityCompat.checkSelfPermission(this, 
+            Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            
+            fusedLocationClient.getLastLocation()
+                .addOnSuccessListener(this, location -> {
+                    if (location != null && mMap != null) {
+                        LatLng currentLocation = new LatLng(
+                            location.getLatitude(), 
+                            location.getLongitude()
+                        );
+                        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLocation, 15f));
+                    }
+                });
+        }
+    }
+
     @Override
     public void onMapReady(@NonNull GoogleMap googleMap) {
         mMap = googleMap;
 
-        // Aplicar estilo personalizado do mapa
         try {
             boolean success = mMap.setMapStyle(
                 MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style_dark)
@@ -79,29 +95,39 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             e.printStackTrace();
         }
 
-        // Configurar interações do mapa
-        mMap.getUiSettings().setMyLocationButtonEnabled(true);
-        mMap.getUiSettings().setCompassEnabled(true);
+        // Desabilitar elementos do mapa
+        mMap.getUiSettings().setMyLocationButtonEnabled(false);
+        mMap.getUiSettings().setCompassEnabled(false);
+        mMap.getUiSettings().setMapToolbarEnabled(false); // Remove botões de navegação do Google Maps
+        mMap.getUiSettings().setZoomControlsEnabled(false);
 
-        // Configurar click listener do mapa
         mMap.setOnMapClickListener(latLng -> {
             mMap.clear();
             selectedLocation = latLng;
             mMap.addMarker(new MarkerOptions().position(latLng));
         });
 
-        // Verificar e solicitar permissões de localização
-        checkLocationPermission();
+        if (checkLocationPermission()) {
+            enableMyLocation();
+        }
+
+        // Esconder loading quando o mapa estiver pronto
+        loadingOverlay.animate()
+                .alpha(0f)
+                .setDuration(300)
+                .withEndAction(() -> loadingOverlay.setVisibility(View.GONE))
+                .start();
     }
 
-    private void checkLocationPermission() {
+    private boolean checkLocationPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
-            enableMyLocation();
+            return true;
         } else {
             ActivityCompat.requestPermissions(this,
                     new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
                     LOCATION_PERMISSION_REQUEST_CODE);
+            return false;
         }
     }
 
@@ -109,15 +135,6 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
             mMap.setMyLocationEnabled(true);
-            
-            // Mover câmera para localização atual
-            fusedLocationClient.getLastLocation().addOnSuccessListener(this, location -> {
-                if (location != null) {
-                    LatLng currentLocation = new LatLng(location.getLatitude(), 
-                                                      location.getLongitude());
-                    mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLocation, 15f));
-                }
-            });
         }
     }
 

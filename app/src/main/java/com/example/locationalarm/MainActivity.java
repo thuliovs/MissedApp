@@ -48,9 +48,10 @@ public class MainActivity extends AppCompatActivity {
             // Animate FAB when clicked
             v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
             
-            // Navigate to MapActivity
+            // Navigate to MapActivity with transition
             Intent intent = new Intent(this, MapActivity.class);
             startActivity(intent);
+            overridePendingTransition(R.anim.slide_in_up, R.anim.fade_out);
         });
     }
 
