@@ -36,7 +36,15 @@
         <activity
             android:name="com.example.locationalarm.MapActivity"
             android:exported="false"
-            android:theme="@style/Theme.Missed" />
+            android:theme="@style/Theme.Missed"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize"
+            android:hardwareAccelerated="true" />
+
+        <!-- Adicionar esta meta-data para o Places -->
+        <meta-data
+            android:name="com.google.android.gms.version"
+            android:value="@integer/google_play_services_version" />
 
     </application>
 </manifest>

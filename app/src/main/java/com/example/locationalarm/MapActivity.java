@@ -1,6 +1,7 @@
 package com.example.locationalarm;
 
 import android.Manifest;
+import android.animation.Animator;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
@@ -10,6 +11,8 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -27,6 +30,31 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
+
+import android.animation.ValueAnimator;
+import android.animation.AnimatorListenerAdapter;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
+import android.content.Context;
+import android.location.Address;
+import android.location.Geocoder;
+import java.io.IOException;
+import java.util.List;
+import android.text.Editable;
+import android.text.TextWatcher;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import com.google.android.libraries.places.api.Places;
+import com.google.android.libraries.places.api.model.AutocompletePrediction;
+import com.google.android.libraries.places.api.model.Place;
+import com.google.android.libraries.places.api.net.FindAutocompletePredictionsRequest;
+import com.google.android.libraries.places.api.net.PlacesClient;
+import com.google.android.libraries.places.api.net.FetchPlaceRequest;
+import com.google.android.libraries.places.api.net.FetchPlaceResponse;
+import java.util.Arrays;
+import android.util.Log;
+import com.google.android.libraries.places.api.model.TypeFilter;
 
 public class MapActivity extends AppCompatActivity implements OnMapReadyCallback {
 
@@ -34,30 +62,48 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     private FusedLocationProviderClient fusedLocationClient;
     private LatLng selectedLocation;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
+    private PlacesClient placesClient;
+    private PlaceSuggestionAdapter suggestionAdapter;
+    private MaterialCardView suggestionsCard;
+    private Handler searchHandler = new Handler(Looper.getMainLooper());
+    private Runnable searchRunnable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_map);
-
-        // Inicializar location services antes do mapa
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         
-        // Carregar localização atual em paralelo
-        if (checkLocationPermission()) {
-            loadLastLocation();
+        // Inicializar FusedLocationClient em background
+        new Thread(() -> {
+            fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        }).start();
+        
+        // Inicializar Places com sua chave API
+        if (!Places.isInitialized()) {
+            Places.initialize(getApplicationContext(), getString(R.string.google_maps_key));
         }
+        placesClient = Places.createClient(this);
+        
+        setContentView(R.layout.activity_map);
+        
+        // Inicializar o mapa em background
+        new Handler(Looper.getMainLooper()).post(() -> {
+            setupMapFragment();
+            setupButtons();
+        });
 
-        setupMapFragment();
-        setupButtons();
+        // Se tiver permissão, já começa a carregar a localização em paralelo
+        if (checkLocationPermission()) {
+            new Thread(() -> {
+                loadLastLocation();
+            }).start();
+        }
     }
 
     private void setupMapFragment() {
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         if (mapFragment != null) {
-            // Configurar o tema do mapa antes de carregá-lo
-            mapFragment.setRetainInstance(true);
+            mapFragment.setRetainInstance(true); // Mantém o fragmento na memória
             mapFragment.getMapAsync(this);
         }
     }
@@ -145,23 +191,26 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(@NonNull GoogleMap googleMap) {
         mMap = googleMap;
+        
+        // Carrega o estilo do mapa em background
+        new Thread(() -> {
+            try {
+                MapStyleOptions style = MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style_dark);
+                runOnUiThread(() -> mMap.setMapStyle(style));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
 
-        try {
-            boolean success = mMap.setMapStyle(
-                MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style_dark)
-            );
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        // Configurações do mapa...
         setupMapSettings();
+        setupSearchBar(); // Configurar a barra de pesquisa
 
         // Aguardar um pouco para garantir que o mapa está totalmente carregado
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             // Esconder loading com animação suave
             View loadingOverlay = findViewById(R.id.loading_overlay);
             View instructionCard = findViewById(R.id.instruction_card);
+            View topBar = findViewById(R.id.top_bar_container);
             
             loadingOverlay.animate()
                     .alpha(0f)
@@ -170,11 +219,18 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                     .withEndAction(() -> {
                         loadingOverlay.setVisibility(View.GONE);
                         
+                        // Mostrar a top bar com a mesma animação do card
+                        topBar.setVisibility(View.VISIBLE);
+                        topBar.animate()
+                                .alpha(1f)
+                                .setDuration(500)
+                                .setInterpolator(new DecelerateInterpolator())
+                                .start();
+                        
                         // Mostrar o card com animação após o loading desaparecer
                         instructionCard.setVisibility(View.VISIBLE);
                         instructionCard.animate()
                                 .alpha(1f)
-                                .translationY(0f)
                                 .setDuration(500)
                                 .setInterpolator(new DecelerateInterpolator())
                                 .start();
@@ -193,11 +249,14 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         // Centralizar logo do Google
         setupGoogleLogo();
 
-        // Configurar click listener
+        // Configurar click listener do mapa
         mMap.setOnMapClickListener(latLng -> {
             mMap.clear();
             selectedLocation = latLng;
             mMap.addMarker(new MarkerOptions().position(latLng));
+            
+            // Mostrar o botão Confirm com animação
+            showConfirmButton();
         });
 
         if (checkLocationPermission()) {
@@ -252,6 +311,233 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 enableMyLocation();
             }
+        }
+    }
+
+    private void showConfirmButton() {
+        MaterialButton confirmButton = findViewById(R.id.btn_confirm_location);
+        MaterialButton cancelButton = findViewById(R.id.btn_back);
+
+        if (confirmButton.getVisibility() == View.GONE) {
+            // Preparar o botão Confirm vazio
+            confirmButton.setText("");
+            LinearLayout.LayoutParams confirmParams = (LinearLayout.LayoutParams) confirmButton.getLayoutParams();
+            confirmParams.weight = 0;
+            confirmButton.setLayoutParams(confirmParams);
+            confirmButton.setAlpha(0f);
+            confirmButton.setVisibility(View.VISIBLE);
+
+            // Primeira animação: expandir o botão vazio
+            ValueAnimator weightAnimator = ValueAnimator.ofFloat(0f, 1f);
+            weightAnimator.addUpdateListener(animation -> {
+                float fraction = (float) animation.getAnimatedValue();
+                
+                // Animar peso do Cancel
+                LinearLayout.LayoutParams cancelParams = (LinearLayout.LayoutParams) cancelButton.getLayoutParams();
+                cancelParams.weight = 1f - (fraction * 0.5f);
+                cancelButton.setLayoutParams(cancelParams);
+                
+                // Animar peso do Confirm
+                confirmParams.weight = fraction * 0.5f;
+                confirmButton.setLayoutParams(confirmParams);
+                
+                // Animar alpha do Confirm
+                confirmButton.setAlpha(fraction);
+
+                // Atualizar o texto gradualmente
+                if (fraction > 0.8f && confirmButton.getText().toString().isEmpty()) {
+                    confirmButton.setText("Confirm");
+                }
+            });
+
+            weightAnimator.setDuration(300);
+            weightAnimator.setInterpolator(new DecelerateInterpolator());
+            weightAnimator.start();
+        }
+    }
+
+    private void setupSearchBar() {
+        EditText searchInput = findViewById(R.id.search_input);
+        MaterialCardView myLocationButton = findViewById(R.id.my_location_button);
+        suggestionsCard = findViewById(R.id.suggestions_card);
+        RecyclerView suggestionsRecyclerView = findViewById(R.id.suggestions_recycler_view);
+
+        // Configurar RecyclerView
+        suggestionAdapter = new PlaceSuggestionAdapter();
+        suggestionsRecyclerView.setAdapter(suggestionAdapter);
+        suggestionsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+
+        // Configurar listener de sugestões
+        suggestionAdapter.setOnSuggestionClickListener(suggestion -> {
+            searchInput.setText(suggestion.getPrimaryText(null));
+            hideSuggestions();
+            fetchPlaceDetails(suggestion.getPlaceId());
+        });
+
+        // Configurar pesquisa com delay
+        searchInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                searchHandler.removeCallbacks(searchRunnable);
+                searchRunnable = () -> {
+                    if (s.length() > 2) {
+                        fetchSuggestions(s.toString());
+                    } else {
+                        hideSuggestions();
+                    }
+                };
+                searchHandler.postDelayed(searchRunnable, 300);
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        // Configurar botão de localização
+        myLocationButton.setOnClickListener(v -> {
+            v.animate()
+                .scaleX(0.9f)
+                .scaleY(0.9f)
+                .setDuration(100)
+                .withEndAction(() -> 
+                    v.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(100)
+                        .start())
+                .start();
+
+            if (checkLocationPermission()) {
+                centerOnMyLocation();
+            }
+        });
+    }
+
+    private void fetchSuggestions(String query) {
+        // Primeiro obter a localização atual
+        if (ActivityCompat.checkSelfPermission(this, 
+            Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            
+            fusedLocationClient.getLastLocation()
+                .addOnSuccessListener(this, location -> {
+                    if (location != null) {
+                        // Criar o request com a localização atual
+                        FindAutocompletePredictionsRequest request = FindAutocompletePredictionsRequest.builder()
+                                .setQuery(query)
+                                .setOrigin(new LatLng(location.getLatitude(), location.getLongitude())) // Prioriza resultados próximos
+                                .setTypeFilter(TypeFilter.ADDRESS)
+                                .build();
+
+                        placesClient.findAutocompletePredictions(request)
+                                .addOnSuccessListener((response) -> {
+                                    List<AutocompletePrediction> predictions = response.getAutocompletePredictions();
+                                    if (!predictions.isEmpty()) {
+                                        suggestionAdapter.setSuggestions(predictions);
+                                        showSuggestions();
+                                    } else {
+                                        hideSuggestions();
+                                    }
+                                })
+                                .addOnFailureListener((exception) -> {
+                                    Log.e("Places", "Error fetching suggestions", exception);
+                                    exception.printStackTrace();
+                                    hideSuggestions();
+                                });
+                    }
+                });
+        } else {
+            // Fallback para busca sem localização
+            FindAutocompletePredictionsRequest request = FindAutocompletePredictionsRequest.builder()
+                    .setQuery(query)
+                    .setTypeFilter(TypeFilter.ADDRESS)
+                    .build();
+
+            placesClient.findAutocompletePredictions(request)
+                    .addOnSuccessListener((response) -> {
+                        List<AutocompletePrediction> predictions = response.getAutocompletePredictions();
+                        if (!predictions.isEmpty()) {
+                            suggestionAdapter.setSuggestions(predictions);
+                            showSuggestions();
+                        } else {
+                            hideSuggestions();
+                        }
+                    })
+                    .addOnFailureListener((exception) -> {
+                        Log.e("Places", "Error fetching suggestions", exception);
+                        exception.printStackTrace();
+                        hideSuggestions();
+                    });
+        }
+    }
+
+    private void fetchPlaceDetails(String placeId) {
+        List<Place.Field> placeFields = Arrays.asList(Place.Field.LAT_LNG);
+        FetchPlaceRequest request = FetchPlaceRequest.newInstance(placeId, placeFields);
+
+        placesClient.fetchPlace(request)
+                .addOnSuccessListener((response) -> {
+                    Place place = response.getPlace();
+                    if (place.getLatLng() != null) {
+                        selectedLocation = place.getLatLng();
+                        mMap.clear();
+                        mMap.addMarker(new MarkerOptions().position(selectedLocation));
+                        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(selectedLocation, 15f));
+                        showConfirmButton();
+                    }
+                })
+                .addOnFailureListener((exception) -> {
+                    exception.printStackTrace();
+                });
+    }
+
+    private void showSuggestions() {
+        if (suggestionsCard.getVisibility() != View.VISIBLE) {
+            suggestionsCard.setVisibility(View.VISIBLE);
+            suggestionsCard.setAlpha(0f);
+            suggestionsCard.animate()
+                    .alpha(1f)
+                    .setDuration(200)
+                    .setInterpolator(new DecelerateInterpolator())
+                    .start();
+        }
+    }
+
+    private void hideSuggestions() {
+        if (suggestionsCard.getVisibility() == View.VISIBLE) {
+            suggestionsCard.animate()
+                    .alpha(0f)
+                    .setDuration(200)
+                    .setInterpolator(new AccelerateInterpolator())
+                    .withEndAction(() -> suggestionsCard.setVisibility(View.GONE))
+                    .start();
+        }
+    }
+
+    private void centerOnMyLocation() {
+        if (ActivityCompat.checkSelfPermission(this, 
+            Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            
+            fusedLocationClient.getLastLocation()
+                .addOnSuccessListener(this, location -> {
+                    if (location != null) {
+                        LatLng currentLocation = new LatLng(
+                            location.getLatitude(), 
+                            location.getLongitude()
+                        );
+                        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLocation, 15f));
+                    }
+                });
+        }
+    }
+
+    private void hideKeyboard() {
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        View view = getCurrentFocus();
+        if (view != null) {
+            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
         }
     }
 } 

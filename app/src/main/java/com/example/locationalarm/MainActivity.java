@@ -45,13 +45,13 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupClickListeners() {
         fabAddAlarm.setOnClickListener(v -> {
-            // Animate FAB when clicked
-            v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
-            
-            // Navigate to MapActivity with transition
+            // Inicia a transição imediatamente
             Intent intent = new Intent(this, MapActivity.class);
             startActivity(intent);
             overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_right);
+            
+            // Aplica a animação do botão após iniciar a transição
+            v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
         });
     }
 
