@@ -4,7 +4,12 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.animation.AccelerateInterpolator;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.RelativeLayout;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -29,15 +34,12 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     private FusedLocationProviderClient fusedLocationClient;
     private LatLng selectedLocation;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
-    private View loadingOverlay;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_map);
 
-        loadingOverlay = findViewById(R.id.loading_overlay);
-        
         // Inicializar location services antes do mapa
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         
@@ -47,34 +49,80 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         }
 
         setupMapFragment();
-        setupConfirmButton();
-        setupBackButton();
+        setupButtons();
     }
 
     private void setupMapFragment() {
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         if (mapFragment != null) {
+            // Configurar o tema do mapa antes de carregá-lo
+            mapFragment.setRetainInstance(true);
             mapFragment.getMapAsync(this);
         }
     }
 
-    private void setupConfirmButton() {
+    private void setupButtons() {
         MaterialButton confirmButton = findViewById(R.id.btn_confirm_location);
-        MaterialButton backButton = findViewById(R.id.btn_back);
+        MaterialButton cancelButton = findViewById(R.id.btn_back);
         
-        confirmButton.setOnClickListener(v -> {
-            if (selectedLocation != null) {
-                // TODO: Passar para a próxima tela com a localização selecionada
+        // Animação de escala para os botões
+        confirmButton.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    v.animate()
+                        .scaleX(0.95f)
+                        .scaleY(0.95f)
+                        .setDuration(100)
+                        .start();
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    v.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(100)
+                        .start();
+                    if (event.getAction() == MotionEvent.ACTION_UP) {
+                        if (selectedLocation != null) {
+                            // TODO: Passar para a próxima tela
+                        }
+                    }
+                    break;
             }
+            return true;
         });
 
-        backButton.setOnClickListener(v -> finish());
+        cancelButton.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    v.animate()
+                        .scaleX(0.95f)
+                        .scaleY(0.95f)
+                        .setDuration(100)
+                        .start();
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    v.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(100)
+                        .start();
+                    if (event.getAction() == MotionEvent.ACTION_UP) {
+                        finish();
+                        overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_right);
+                    }
+                    break;
+            }
+            return true;
+        });
     }
 
-    private void setupBackButton() {
-        View backButton = findViewById(R.id.btn_back);
-        backButton.setOnClickListener(v -> finish());
+    @Override
+    public void finish() {
+        super.finish();
+        overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_right);
     }
 
     private void loadLastLocation() {
@@ -106,12 +154,58 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             e.printStackTrace();
         }
 
+        // Configurações do mapa...
+        setupMapSettings();
+
+        // Aguardar um pouco para garantir que o mapa está totalmente carregado
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            // Esconder loading com animação suave
+            View loadingOverlay = findViewById(R.id.loading_overlay);
+            View instructionCard = findViewById(R.id.instruction_card);
+            
+            loadingOverlay.animate()
+                    .alpha(0f)
+                    .setDuration(800)
+                    .setInterpolator(new AccelerateInterpolator())
+                    .withEndAction(() -> {
+                        loadingOverlay.setVisibility(View.GONE);
+                        
+                        // Mostrar o card com animação após o loading desaparecer
+                        instructionCard.setVisibility(View.VISIBLE);
+                        instructionCard.animate()
+                                .alpha(1f)
+                                .translationY(0f)
+                                .setDuration(500)
+                                .setInterpolator(new DecelerateInterpolator())
+                                .start();
+                    })
+                    .start();
+        }, 3000);
+    }
+
+    private void setupMapSettings() {
         // Desabilitar elementos do mapa
         mMap.getUiSettings().setMyLocationButtonEnabled(false);
         mMap.getUiSettings().setCompassEnabled(false);
         mMap.getUiSettings().setMapToolbarEnabled(false);
         mMap.getUiSettings().setZoomControlsEnabled(false);
 
+        // Centralizar logo do Google
+        setupGoogleLogo();
+
+        // Configurar click listener
+        mMap.setOnMapClickListener(latLng -> {
+            mMap.clear();
+            selectedLocation = latLng;
+            mMap.addMarker(new MarkerOptions().position(latLng));
+        });
+
+        if (checkLocationPermission()) {
+            enableMyLocation();
+        }
+    }
+
+    private void setupGoogleLogo() {
         // Centralizar o logo do Google Maps
         View mapView = getSupportFragmentManager().findFragmentById(R.id.map).getView();
         if (mapView != null) {
@@ -129,23 +223,6 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                 googleLogo.setLayoutParams(layoutParams);
             }
         }
-
-        mMap.setOnMapClickListener(latLng -> {
-            mMap.clear();
-            selectedLocation = latLng;
-            mMap.addMarker(new MarkerOptions().position(latLng));
-        });
-
-        if (checkLocationPermission()) {
-            enableMyLocation();
-        }
-
-        // Esconder loading quando o mapa estiver pronto
-        loadingOverlay.animate()
-                .alpha(0f)
-                .setDuration(300)
-                .withEndAction(() -> loadingOverlay.setVisibility(View.GONE))
-                .start();
     }
 
     private boolean checkLocationPermission() {

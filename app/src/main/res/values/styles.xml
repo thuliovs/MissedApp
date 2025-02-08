@@ -10,4 +10,9 @@
         <item name="android:shadowRadius">2</item>
         <item name="android:alpha">0.87</item>
     </style>
+
+    <style name="MapFragmentStyle" parent="ThemeOverlay.MaterialComponents">
+        <item name="android:windowBackground">@color/background_dark</item>
+        <item name="android:colorBackground">@color/background_dark</item>
+    </style>
 </resources> 

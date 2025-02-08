@@ -51,7 +51,7 @@ public class MainActivity extends AppCompatActivity {
             // Navigate to MapActivity with transition
             Intent intent = new Intent(this, MapActivity.class);
             startActivity(intent);
-            overridePendingTransition(R.anim.slide_in_up, R.anim.fade_out);
+            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_right);
         });
     }
 
