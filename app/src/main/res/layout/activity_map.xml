@@ -35,22 +35,6 @@
         android:layout_height="match_parent"
         android:paddingBottom="16dp">
 
-        <!-- Botão de voltar -->
-        <ImageButton
-            android:id="@+id/btn_back"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_margin="16dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_back"
-            android:padding="12dp"
-            android:contentDescription="Back"
-            android:elevation="4dp"
-            android:outlineProvider="none"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            style="@style/MapControlButton"/>
-
         <!-- Card com instruções -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/instruction_card"
@@ -81,15 +65,38 @@
                     android:textColor="@color/text_primary"
                     android:textSize="16sp" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_confirm_location"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:orientation="horizontal"
                     android:layout_marginTop="8dp"
-                    android:text="Confirm Location"
-                    android:textColor="@color/background_dark"
-                    app:backgroundTint="@color/accent"
-                    app:cornerRadius="24dp" />
+                    android:paddingHorizontal="4dp">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_confirm_location"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:text="Confirm"
+                        android:textColor="@color/background_dark"
+                        app:backgroundTint="@color/accent"
+                        app:cornerRadius="24dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_back"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:text="Cancel"
+                        android:textColor="@color/text_primary"
+                        app:backgroundTint="@color/surface_dark"
+                        app:strokeColor="@color/accent"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="24dp" />
+
+                </LinearLayout>
 
             </LinearLayout>
 

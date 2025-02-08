@@ -61,11 +61,15 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
     private void setupConfirmButton() {
         MaterialButton confirmButton = findViewById(R.id.btn_confirm_location);
+        MaterialButton backButton = findViewById(R.id.btn_back);
+        
         confirmButton.setOnClickListener(v -> {
             if (selectedLocation != null) {
                 // TODO: Passar para a próxima tela com a localização selecionada
             }
         });
+
+        backButton.setOnClickListener(v -> finish());
     }
 
     private void setupBackButton() {
