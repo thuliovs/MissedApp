@@ -29,44 +29,72 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Card inferior com instruções -->
-    <com.google.android.material.card.MaterialCardView
+    <!-- Container para os elementos de UI -->
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:layout_margin="16dp"
-        app:cardBackgroundColor="@color/surface_dark"
-        app:cardCornerRadius="28dp"
-        app:cardElevation="0dp"
-        app:strokeWidth="1dp"
-        app:strokeColor="@color/accent_tertiary">
+        android:layout_height="match_parent"
+        android:paddingBottom="16dp">
 
-        <LinearLayout
+        <!-- Botão de voltar -->
+        <ImageButton
+            android:id="@+id/btn_back"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_margin="16dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_back"
+            android:padding="12dp"
+            android:contentDescription="Back"
+            android:elevation="4dp"
+            android:outlineProvider="none"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            style="@style/MapControlButton"/>
+
+        <!-- Card com instruções -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/instruction_card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginBottom="20dp"
+            app:cardBackgroundColor="@color/surface_dark"
+            app:cardCornerRadius="28dp"
+            app:cardElevation="0dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:strokeColor="@color/accent_tertiary"
+            app:strokeWidth="1dp">
 
-            <TextView
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Tap on the map to select your destination"
-                android:textColor="@color/text_primary"
-                android:textSize="16sp"
-                android:fontFamily="@font/roboto_medium"/>
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:gravity="center">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_confirm_location"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Confirm Location"
-                android:textColor="@color/background_dark"
-                app:backgroundTint="@color/accent"
-                app:cornerRadius="24dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/roboto_medium"
+                    android:text="Tap on the map to select your destination"
+                    android:textAlignment="center"
+                    android:textColor="@color/text_primary"
+                    android:textSize="16sp" />
 
-        </LinearLayout>
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_confirm_location"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Confirm Location"
+                    android:textColor="@color/background_dark"
+                    app:backgroundTint="@color/accent"
+                    app:cornerRadius="24dp" />
 
-    </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout> 

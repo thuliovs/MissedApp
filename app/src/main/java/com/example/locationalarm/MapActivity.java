@@ -5,6 +5,7 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.RelativeLayout;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -47,6 +48,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
         setupMapFragment();
         setupConfirmButton();
+        setupBackButton();
     }
 
     private void setupMapFragment() {
@@ -64,6 +66,11 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                 // TODO: Passar para a próxima tela com a localização selecionada
             }
         });
+    }
+
+    private void setupBackButton() {
+        View backButton = findViewById(R.id.btn_back);
+        backButton.setOnClickListener(v -> finish());
     }
 
     private void loadLastLocation() {
@@ -98,8 +105,26 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         // Desabilitar elementos do mapa
         mMap.getUiSettings().setMyLocationButtonEnabled(false);
         mMap.getUiSettings().setCompassEnabled(false);
-        mMap.getUiSettings().setMapToolbarEnabled(false); // Remove botões de navegação do Google Maps
+        mMap.getUiSettings().setMapToolbarEnabled(false);
         mMap.getUiSettings().setZoomControlsEnabled(false);
+
+        // Centralizar o logo do Google Maps
+        View mapView = getSupportFragmentManager().findFragmentById(R.id.map).getView();
+        if (mapView != null) {
+            View locationButton = ((View) mapView.findViewById(Integer.parseInt("1")).getParent()).findViewById(Integer.parseInt("2"));
+            View googleLogo = mapView.findViewWithTag("GoogleWatermark");
+            
+            if (googleLogo != null) {
+                RelativeLayout.LayoutParams layoutParams = (RelativeLayout.LayoutParams) googleLogo.getLayoutParams();
+                // Remove regras de alinhamento anteriores
+                layoutParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT, 0);
+                layoutParams.addRule(RelativeLayout.ALIGN_PARENT_START, 0);
+                // Centraliza horizontalmente
+                layoutParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
+                layoutParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+                googleLogo.setLayoutParams(layoutParams);
+            }
+        }
 
         mMap.setOnMapClickListener(latLng -> {
             mMap.clear();
