@@ -107,10 +107,10 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:background="@null"
-                        android:hint="search destination"
+                        android:hint="where we're going?"
                         android:textColorHint="@color/text_secondary"
                         android:textColor="@color/text_primary"
-                        android:textSize="16sp"
+                        android:textSize="15sp"
                         android:fontFamily="@font/roboto_regular"
                         android:imeOptions="actionSearch"
                         android:inputType="text"
@@ -191,7 +191,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginHorizontal="16dp"
-            android:layout_marginBottom="32dp"
+            android:layout_marginBottom="36dp"
             android:alpha="0"
             android:visibility="invisible"
             app:cardBackgroundColor="@color/background_dark"
@@ -207,6 +207,8 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="16dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
                 android:gravity="center">
 
                 <TextView
@@ -216,7 +218,7 @@
                     android:text="tap or search to select your destination"
                     android:textAlignment="center"
                     android:textColor="@color/text_primary"
-                    android:textSize="16sp" />
+                    android:textSize="15sp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -225,27 +227,32 @@
                     android:layout_marginTop="8dp"
                     android:paddingHorizontal="4dp">
 
-                    <!-- Botão Confirm (inicialmente invisível) -->
+                    <!-- Botão Confirm -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_confirm_location"
                         android:layout_width="0dp"
-                        android:layout_weight="0"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="4dp"
-                        android:text=""
+                        android:layout_weight="1"
+                        android:layout_height="52dp"
+                        android:text="confirm"
+                        android:textSize="15sp"
+                        android:fontFamily="@font/roboto_medium"
+                        android:textAllCaps="false"
                         android:textColor="@color/background_dark"
                         android:visibility="gone"
                         android:alpha="0"
                         app:backgroundTint="@color/accent"
                         app:cornerRadius="24dp" />
 
-                    <!-- Botão Cancel (inicialmente ocupando toda a largura) -->
+                    <!-- Botão Cancel -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_back"
                         android:layout_width="0dp"
                         android:layout_weight="1"
-                        android:layout_height="wrap_content"
-                        android:text="Cancel"
+                        android:layout_height="52dp"
+                        android:text="cancel"
+                        android:textSize="15sp"
+                        android:fontFamily="@font/roboto_medium"
+                        android:textAllCaps="false"
                         android:textColor="@color/text_primary"
                         android:layout_marginStart="4dp"
                         app:backgroundTint="@color/surface_dark"

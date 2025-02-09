@@ -160,7 +160,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                         .start();
                     if (event.getAction() == MotionEvent.ACTION_UP) {
                         finish();
-                        overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_right);
+                        overridePendingTransition(0, R.anim.slide_out_right);
                     }
                     break;
             }
@@ -171,7 +171,8 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     @Override
     public void finish() {
         super.finish();
-        overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_right);
+        // Apenas anima a saída do MapActivity, sem animar a MainActivity
+        overridePendingTransition(0, R.anim.slide_out_right);
     }
 
     private void loadLastLocation() {
@@ -321,11 +322,16 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         MaterialButton confirmButton = findViewById(R.id.btn_confirm_location);
         MaterialButton cancelButton = findViewById(R.id.btn_back);
 
+        // Garantir que o texto está em minúsculo
+        confirmButton.setText("confirm");
+        
         if (confirmButton.getVisibility() == View.GONE) {
             // Preparar o botão Confirm vazio
             confirmButton.setText("");
             LinearLayout.LayoutParams confirmParams = (LinearLayout.LayoutParams) confirmButton.getLayoutParams();
             confirmParams.weight = 0;
+            // Adicionar margem direita ao Confirm
+            confirmParams.rightMargin = (int) (5 * getResources().getDisplayMetrics().density); // 8dp
             confirmButton.setLayoutParams(confirmParams);
             confirmButton.setAlpha(0f);
             confirmButton.setVisibility(View.VISIBLE);
@@ -338,6 +344,8 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                 // Animar peso do Cancel
                 LinearLayout.LayoutParams cancelParams = (LinearLayout.LayoutParams) cancelButton.getLayoutParams();
                 cancelParams.weight = 1f - (fraction * 0.5f);
+                // Adicionar margem esquerda ao Cancel
+                cancelParams.leftMargin = (int) (5 * getResources().getDisplayMetrics().density); // 8dp
                 cancelButton.setLayoutParams(cancelParams);
                 
                 // Animar peso do Confirm
@@ -349,7 +357,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
                 // Atualizar o texto gradualmente
                 if (fraction > 0.8f && confirmButton.getText().toString().isEmpty()) {
-                    confirmButton.setText("Confirm");
+                    confirmButton.setText("confirm");
                 }
             });
 

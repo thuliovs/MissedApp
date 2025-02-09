@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">missed.</string>
-    <string name="app_subtitle">A location-based alarm clock</string>
-    <string name="no_alarms_message">Sweet Dreams Ahead</string>
-    <string name="add_alarm">New Alarm</string>
-    <string name="empty_state_description">Create your first location-based alarm and rest assured. Your phone will wake you up.</string>
+    <string name="app_name">missed</string>
+    <string name="app_subtitle">a location-based alarm clock</string>
+    <string name="no_alarms_message">sweet dreams ahead</string>
+    <string name="add_alarm">new alarm</string>
+    <string name="empty_state_description">create your first location-based alarm and rest assured. your phone will wake you up.</string>
 </resources>

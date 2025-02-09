@@ -1,6 +1,7 @@
 package com.example.locationalarm;
 
 import android.content.Intent;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.view.View;
 import android.view.animation.AnimationUtils;
@@ -45,12 +46,20 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupClickListeners() {
         fabAddAlarm.setOnClickListener(v -> {
-            // Inicia a transição imediatamente
-            Intent intent = new Intent(this, MapActivity.class);
-            startActivity(intent);
-            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_right);
+            LocationManager locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
             
-            // Aplica a animação do botão após iniciar a transição
+            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                // Se localização estiver ativa, vai direto para o mapa
+                Intent intent = new Intent(this, MapActivity.class);
+                startActivity(intent);
+                overridePendingTransition(R.anim.slide_in_right, 0);
+            } else {
+                // Se não, mostra a tela de verificação com a mesma animação do mapa
+                Intent intent = new Intent(this, LocationCheckActivity.class);
+                startActivity(intent);
+                overridePendingTransition(R.anim.slide_in_right, 0);
+            }
+            
             v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
         });
     }

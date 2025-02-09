@@ -29,9 +29,9 @@
             android:id="@+id/app_subtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/app_subtitle"
+            android:text="a location-based alarm clock"
             android:textColor="@color/text_secondary"
-            android:textSize="16sp"
+            android:textSize="15sp"
             android:fontFamily="@font/roboto_regular"
             android:layout_marginTop="4dp"
             app:layout_constraintTop_toBottomOf="@id/app_title"
@@ -79,9 +79,9 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/empty_state_description"
+                    android:text="create your first location-based alarm and rest assured. your phone will wake you up."
                     android:textColor="@color/text_secondary"
-                    android:textSize="16sp"
+                    android:textSize="15sp"
                     android:fontFamily="@font/roboto_regular"
                     android:layout_marginTop="8dp"
                     android:textAlignment="center"/>
@@ -107,18 +107,17 @@
     <!-- Extended Floating Action Button -->
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/fab_add_alarm"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
         android:layout_gravity="bottom|center"
         android:layout_marginBottom="32dp"
-        android:text="@string/add_alarm"
+        android:layout_marginHorizontal="20dp"
+        android:text="new alarm"
         android:textColor="@color/background_dark"
+        android:textSize="15sp"
         android:fontFamily="@font/roboto_medium"
-        android:textAllCaps="true"
-        android:letterSpacing="0.1"
-        app:icon="@drawable/ic_add"
-        app:iconTint="@color/background_dark"
-        app:iconPadding="3dp"
+        android:textAllCaps="false"
+        android:gravity="center"
         app:backgroundTint="@color/accent"/>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
