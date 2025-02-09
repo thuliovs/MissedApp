@@ -55,6 +55,8 @@ import com.google.android.libraries.places.api.net.FetchPlaceResponse;
 import java.util.Arrays;
 import android.util.Log;
 import com.google.android.libraries.places.api.model.TypeFilter;
+import com.google.android.libraries.places.api.model.LocationBias;
+import com.google.android.libraries.places.api.model.RectangularBounds;
 
 public class MapActivity extends AppCompatActivity implements OnMapReadyCallback {
 
@@ -67,6 +69,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     private MaterialCardView suggestionsCard;
     private Handler searchHandler = new Handler(Looper.getMainLooper());
     private Runnable searchRunnable;
+    private boolean isUserInput = true; // Nova flag para controlar input do usuário
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -369,31 +372,63 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
         // Configurar listener de sugestões
         suggestionAdapter.setOnSuggestionClickListener(suggestion -> {
-            searchInput.setText(suggestion.getPrimaryText(null));
+            isUserInput = false; // Desabilitar processamento do TextWatcher
+            String primaryText = suggestion.getPrimaryText(null).toString();
+            String secondaryText = suggestion.getSecondaryText(null).toString();
+            String fullAddress = String.format("%s, %s", primaryText, secondaryText);
+            
+            searchInput.setText(fullAddress); // Isso não vai disparar busca de sugestões
+            hideKeyboard();
             hideSuggestions();
+            searchInput.clearFocus();
             fetchPlaceDetails(suggestion.getPlaceId());
+            isUserInput = true; // Reabilitar processamento do TextWatcher
         });
 
-        // Configurar pesquisa com delay
+        // TextWatcher que só busca quando for input do usuário
         searchInput.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                searchHandler.removeCallbacks(searchRunnable);
-                searchRunnable = () -> {
-                    if (s.length() > 2) {
-                        fetchSuggestions(s.toString());
-                    } else {
-                        hideSuggestions();
-                    }
-                };
-                searchHandler.postDelayed(searchRunnable, 300);
+                if (searchInput.hasFocus() && isUserInput) { // Verificar se é input do usuário
+                    searchHandler.removeCallbacks(searchRunnable);
+                    searchRunnable = () -> {
+                        if (s.length() > 2) {
+                            fetchSuggestions(s.toString());
+                        } else {
+                            hideSuggestions();
+                        }
+                    };
+                    searchHandler.postDelayed(searchRunnable, 300);
+                }
             }
 
             @Override
             public void afterTextChanged(Editable s) {}
+        });
+
+        // Configurar ação de pesquisa no teclado
+        searchInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                hideKeyboard();
+                hideSuggestions();
+                searchInput.clearFocus();
+                return true;
+            }
+            return false;
+        });
+
+        // Listener de foco que controla as sugestões
+        searchInput.setOnFocusChangeListener((v, hasFocus) -> {
+            if (!hasFocus) {
+                hideKeyboard();
+                hideSuggestions();
+            } else if (searchInput.getText().length() > 2) {
+                // Só mostra sugestões ao ganhar foco se já tiver texto
+                fetchSuggestions(searchInput.getText().toString());
+            }
         });
 
         // Configurar botão de localização
@@ -417,18 +452,22 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     }
 
     private void fetchSuggestions(String query) {
-        // Primeiro obter a localização atual
         if (ActivityCompat.checkSelfPermission(this, 
             Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             
             fusedLocationClient.getLastLocation()
                 .addOnSuccessListener(this, location -> {
                     if (location != null) {
-                        // Criar o request com a localização atual
+                        LocationBias bias = RectangularBounds.newInstance(
+                            new LatLng(location.getLatitude() - 0.1, location.getLongitude() - 0.1),
+                            new LatLng(location.getLatitude() + 0.1, location.getLongitude() + 0.1)
+                        );
+
                         FindAutocompletePredictionsRequest request = FindAutocompletePredictionsRequest.builder()
                                 .setQuery(query)
-                                .setOrigin(new LatLng(location.getLatitude(), location.getLongitude())) // Prioriza resultados próximos
-                                .setTypeFilter(TypeFilter.ADDRESS)
+                                .setLocationBias(bias)
+                                .setTypeFilter(null)
+                                .setOrigin(new LatLng(location.getLatitude(), location.getLongitude()))
                                 .build();
 
                         placesClient.findAutocompletePredictions(request)
@@ -506,12 +545,15 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     }
 
     private void hideSuggestions() {
-        if (suggestionsCard.getVisibility() == View.VISIBLE) {
+        if (suggestionsCard != null && suggestionsCard.getVisibility() == View.VISIBLE) {
             suggestionsCard.animate()
                     .alpha(0f)
-                    .setDuration(200)
+                    .setDuration(150)
                     .setInterpolator(new AccelerateInterpolator())
-                    .withEndAction(() -> suggestionsCard.setVisibility(View.GONE))
+                    .withEndAction(() -> {
+                        suggestionsCard.setVisibility(View.GONE);
+                        suggestionsCard.setAlpha(0f);
+                    })
                     .start();
         }
     }
@@ -534,10 +576,15 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     }
 
     private void hideKeyboard() {
-        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        View view = getCurrentFocus();
-        if (view != null) {
-            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+        try {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            View view = getCurrentFocus();
+            if (view != null) {
+                imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+                view.clearFocus();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 } 
