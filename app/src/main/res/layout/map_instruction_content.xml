@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:gravity="center">
+
+    <TextView
+        android:id="@+id/instruction_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="tap or search to select your destination"
+        android:textColor="@color/text_primary"
+        android:textSize="15sp"
+        android:fontFamily="@font/roboto_medium"
+        android:textAlignment="center"/>
+
+    <LinearLayout
+        android:id="@+id/buttons_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_confirm_location"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="52dp"
+            android:text="confirm"
+            android:layout_marginEnd="4dp"
+            android:textSize="15sp"
+            android:fontFamily="@font/roboto_medium"
+            android:textAllCaps="false"
+            android:textColor="@color/background_dark"
+            android:visibility="gone"
+            android:alpha="0"
+            app:backgroundTint="@color/accent"
+            app:cornerRadius="24dp"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_back"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="52dp"
+            android:text="cancel"
+            android:layout_marginStart="4dp"
+            android:textSize="15sp"
+            android:fontFamily="@font/roboto_medium"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary"
+            app:backgroundTint="@color/surface_dark"
+            app:strokeColor="@color/accent"
+            app:strokeWidth="1dp"
+            app:cornerRadius="24dp"/>
+
+    </LinearLayout>
+</LinearLayout> 

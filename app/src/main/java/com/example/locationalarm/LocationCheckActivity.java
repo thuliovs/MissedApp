@@ -18,9 +18,7 @@ public class LocationCheckActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_location_check);
-
         setupButtons();
-        startEntranceAnimation();
     }
 
     private void setupButtons() {
@@ -36,38 +34,6 @@ public class LocationCheckActivity extends AppCompatActivity {
             finish();
             overridePendingTransition(0, R.anim.slide_out_right);
         });
-    }
-
-    private void startEntranceAnimation() {
-        View icon = findViewById(R.id.location_icon);
-        View title = findViewById(R.id.title_text);
-        View description = findViewById(R.id.description_text);
-        View buttons = findViewById(R.id.buttons_container);
-
-        // Configurar animações
-        ObjectAnimator iconScale = ObjectAnimator.ofFloat(icon, "scaleX", 0.8f, 1f);
-        ObjectAnimator iconScale2 = ObjectAnimator.ofFloat(icon, "scaleY", 0.8f, 1f);
-        ObjectAnimator iconAlpha = ObjectAnimator.ofFloat(icon, "alpha", 0f, 1f);
-
-        ObjectAnimator titleAlpha = ObjectAnimator.ofFloat(title, "alpha", 0f, 1f);
-        ObjectAnimator titleTranslate = ObjectAnimator.ofFloat(title, "translationY", 20f, 0f);
-
-        ObjectAnimator descAlpha = ObjectAnimator.ofFloat(description, "alpha", 0f, 1f);
-        ObjectAnimator descTranslate = ObjectAnimator.ofFloat(description, "translationY", 20f, 0f);
-
-        ObjectAnimator buttonsAlpha = ObjectAnimator.ofFloat(buttons, "alpha", 0f, 1f);
-        ObjectAnimator buttonsTranslate = ObjectAnimator.ofFloat(buttons, "translationY", 20f, 0f);
-
-        // Criar conjunto de animações
-        AnimatorSet animatorSet = new AnimatorSet();
-        animatorSet.playTogether(iconScale, iconScale2, iconAlpha, 
-                               titleAlpha, titleTranslate,
-                               descAlpha, descTranslate,
-                               buttonsAlpha, buttonsTranslate);
-        
-        animatorSet.setDuration(500);
-        animatorSet.setInterpolator(new DecelerateInterpolator());
-        animatorSet.start();
     }
 
     @Override

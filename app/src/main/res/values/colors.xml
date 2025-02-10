@@ -21,7 +21,4 @@
     <color name="teal_700">#FF4A5090</color>
     <color name="black">#FF0A1023</color>
     <color name="white">#FFECF0FF</color>
-
-    <!-- Launcher Icon Colors -->
-    <color name="ic_launcher_background">#FF0A1023</color>  <!-- Usando o valor direto ao invés da referência -->
 </resources>
