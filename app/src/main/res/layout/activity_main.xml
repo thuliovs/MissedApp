@@ -111,7 +111,7 @@
         android:layout_height="44dp"
         android:layout_gravity="bottom|center"
         android:layout_marginBottom="32dp"
-        android:layout_marginHorizontal="20dp"
+        android:layout_marginHorizontal="10dp"
         android:text="new alarm"
         android:textColor="@color/background_dark"
         android:textSize="15sp"

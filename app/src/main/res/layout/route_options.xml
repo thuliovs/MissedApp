@@ -2,7 +2,7 @@
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/radius_selector_container"
+    android:id="@+id/route_options_container"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -13,54 +13,12 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="in how many kilometers you wanna be waked?"
+        android:text="add to your routes or use only this time?"
         android:textColor="@color/text_primary"
         android:textSize="15sp"
         android:fontFamily="@font/roboto_medium"
         android:textAlignment="center"
-        android:layout_marginTop="16dp" />
-
-    <SeekBar
-        android:id="@+id/radius_seekbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="18dp"
-        android:layout_marginBottom="16dp"
-        android:progressTint="@color/accent"
-        android:thumbTint="@color/accent"
-        android:progressBackgroundTint="@color/accent_tertiary"
-        android:max="13"/>
-
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginBottom="13dp">
-
-        <EditText
-            android:id="@+id/radius_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="@color/text_primary"
-            android:textSize="24sp"
-            android:fontFamily="@font/roboto_medium"
-            android:background="@null"
-            android:inputType="numberDecimal"
-            android:maxLength="4"
-            android:textAlignment="center"
-            android:minWidth="35dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="km"
-            android:textColor="@color/text_primary"
-            android:textSize="24sp"
-            android:fontFamily="@font/roboto_medium"
-            android:layout_marginStart="4dp"/>
-
-    </LinearLayout>
+        android:layout_marginTop="16dp"/>
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -70,11 +28,11 @@
         android:layout_marginBottom="16dp">
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_confirm_radius"
+            android:id="@+id/btn_add_route"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="52dp"
-            android:text="confirm"
+            android:text="my routes"
             android:layout_marginEnd="4dp"
             android:textSize="15sp"
             android:fontFamily="@font/roboto_medium"
@@ -84,11 +42,11 @@
             app:cornerRadius="24dp"/>
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_back_radius"
+            android:id="@+id/btn_one_time"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="52dp"
-            android:text="return"
+            android:text="one time use"
             android:layout_marginStart="4dp"
             android:textSize="15sp"
             android:fontFamily="@font/roboto_medium"

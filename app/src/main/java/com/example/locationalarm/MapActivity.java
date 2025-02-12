@@ -11,7 +11,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AccelerateInterpolator;
+import android.view.animation.AnimationUtils;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -30,7 +32,9 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MapStyleOptions;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
@@ -68,6 +72,10 @@ import android.graphics.Color;
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import java.util.Locale;
+import android.graphics.Point;
+import com.google.android.gms.maps.CameraUpdate;
+import android.widget.Toast;
+import com.google.android.gms.common.api.ApiException;
 
 public class MapActivity extends AppCompatActivity implements OnMapReadyCallback {
 
@@ -76,13 +84,14 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     private LatLng selectedLocation;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
     private PlacesClient placesClient;
-    private PlaceSuggestionAdapter suggestionAdapter;
     private MaterialCardView suggestionsCard;
+    private PlaceSuggestionAdapter suggestionAdapter;
     private Handler searchHandler = new Handler(Looper.getMainLooper());
     private Runnable searchRunnable;
     private boolean isUserInput = true; // Nova flag para controlar input do usuário
 
-    private double selectedRadius = 1.0; // em km
+    private static final double DEFAULT_RADIUS = 1.0; // Valor padrão do raio
+    private double selectedRadius = DEFAULT_RADIUS; // Inicializado com valor padrão
     private final double[] RADIUS_OPTIONS = {0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0};
 
     private View instructionCard;
@@ -90,6 +99,11 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     private MaterialButton btnConfirmLocation;
     private MaterialButton btnBack;
     private Circle radiusCircle;
+    private Circle currentCircle;
+    private ValueAnimator radiusAnimator;
+    private Marker currentMarker;
+
+    private int currentStep = 1; // 1: localização, 2: raio, 3: opções de rota
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -144,6 +158,9 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
         // Configurar botão Back
         btnBack.setOnClickListener(v -> {
+            v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
+            // Resetar o raio para o valor padrão apenas quando voltar para a tela inicial
+            selectedRadius = DEFAULT_RADIUS;
             finish();
             overridePendingTransition(0, R.anim.slide_out_right);
         });
@@ -345,26 +362,59 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         MaterialCardView myLocationButton = findViewById(R.id.my_location_button);
         suggestionsCard = findViewById(R.id.suggestions_card);
         RecyclerView suggestionsRecyclerView = findViewById(R.id.suggestions_recycler_view);
-
-        // Configurar RecyclerView
+        
+        // Configurar RecyclerView e Adapter
         suggestionAdapter = new PlaceSuggestionAdapter();
+        suggestionAdapter.setOnSuggestionClickListener(suggestion -> {
+            // Esconder teclado e sugestões
+            hideKeyboard();
+            hideSuggestions();
+            
+            // Atualizar o texto da busca
+            isUserInput = false;
+            searchInput.setText(suggestion.getPrimaryText(null));
+            isUserInput = true;
+            
+            // Buscar detalhes do local e mover a câmera
+            FetchPlaceRequest request = FetchPlaceRequest.newInstance(
+                suggestion.getPlaceId(),
+                Arrays.asList(Place.Field.LAT_LNG)
+            );
+            
+            placesClient.fetchPlace(request)
+                .addOnSuccessListener(response -> {
+                    Place place = response.getPlace();
+                    if (place.getLatLng() != null) {
+                        // Limpar mapa e adicionar marcador
+                        mMap.clear();
+                        selectedLocation = place.getLatLng();
+                        mMap.addMarker(new MarkerOptions().position(selectedLocation));
+                        
+                        // Mover câmera para a localização
+                        mMap.animateCamera(
+                            CameraUpdateFactory.newLatLngZoom(selectedLocation, 15f),
+                            300,
+                            null
+                        );
+                        
+                        // Mostrar botão de confirmar
+                        showConfirmButton();
+                    }
+                })
+                .addOnFailureListener(exception -> {
+                    if (exception instanceof ApiException) {
+                        Toast.makeText(
+                            MapActivity.this,
+                            "Error: " + ((ApiException) exception).getStatusCode(),
+                            Toast.LENGTH_SHORT
+                        ).show();
+                    }
+                });
+        });
+        
         suggestionsRecyclerView.setAdapter(suggestionAdapter);
         suggestionsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
-
-        // Controlar visibilidade das sugestões com o foco
-        searchInput.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) {
-                suggestionsCard.setVisibility(View.VISIBLE);
-                suggestionsCard.setAlpha(1f);
-                if (searchInput.getText().length() > 2) {
-                    fetchSuggestions(searchInput.getText().toString());
-                }
-            } else {
-                hideKeyboard();
-                hideSuggestions();
-            }
-        });
-
+        
         // TextWatcher para buscar sugestões enquanto digita
         searchInput.addTextChangedListener(new TextWatcher() {
             @Override
@@ -375,7 +425,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                 if (searchInput.hasFocus() && isUserInput) {
                     searchHandler.removeCallbacks(searchRunnable);
                     searchRunnable = () -> {
-                        if (s.length() > 2) {
+                        if (s.length() > 0) {
                             suggestionsCard.setVisibility(View.VISIBLE);
                             suggestionsCard.setAlpha(1f);
                             fetchSuggestions(s.toString());
@@ -389,6 +439,20 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
             @Override
             public void afterTextChanged(Editable s) {}
+        });
+
+        // Controlar visibilidade das sugestões com o foco
+        searchInput.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus && searchInput.getText().length() > 0) {
+                suggestionsCard.setVisibility(View.VISIBLE);
+                suggestionsCard.setAlpha(1f);
+                if (searchInput.getText().length() > 2) {
+                    fetchSuggestions(searchInput.getText().toString());
+                }
+            } else {
+                hideKeyboard();
+                hideSuggestions();
+            }
         });
 
         // Configurar botão de localização
@@ -615,30 +679,35 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         try {
             View instructionText = cardContent.findViewById(R.id.instruction_text);
             View buttonsContainer = cardContent.findViewById(R.id.buttons_container);
-            MaterialCardView instructionCard = (MaterialCardView) findViewById(R.id.instruction_card);
+            MaterialCardView instructionCard = findViewById(R.id.instruction_card);
+            View topBarContainer = findViewById(R.id.top_bar_container);
             
-            // Medir a altura atual do card
-            int startHeight = instructionCard.getHeight();
+            // Desabilitar TODOS os gestos do mapa
+            mMap.getUiSettings().setAllGesturesEnabled(false);
+            mMap.setOnMapClickListener(null);
+            mMap.setOnMarkerClickListener(marker -> true);
             
-            // Inflar o novo layout sem adicionar à view para medir sua altura
-            View radiusSelector = getLayoutInflater().inflate(R.layout.radius_selector, null);
-            radiusSelector.measure(
-                View.MeasureSpec.makeMeasureSpec(cardContent.getWidth(), View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            // Calcular o zoom baseado no raio inicial (1.0 km)
+            LatLngBounds bounds = calculateBoundsForRadius(selectedLocation, 1.0);
+            
+            // Configurar padding para mover o centro para cima
+            mMap.setPadding(0, 0, 0, 750);
+            
+            // Animar a câmera para a nova posição com zoom apropriado
+            mMap.animateCamera(
+                CameraUpdateFactory.newLatLngBounds(bounds, 100),
+                300,
+                null
             );
-            int targetHeight = radiusSelector.getMeasuredHeight();
+            
+            // 1. Animar a saída da barra superior
+            topBarContainer.animate()
+                    .translationY(-topBarContainer.getHeight())
+                    .alpha(0f)
+                    .setDuration(300)
+                    .setInterpolator(new AccelerateInterpolator());
 
-            // Animar a altura do card
-            ValueAnimator heightAnimator = ValueAnimator.ofInt(startHeight, targetHeight);
-            heightAnimator.addUpdateListener(animation -> {
-                ViewGroup.LayoutParams params = instructionCard.getLayoutParams();
-                params.height = (int) animation.getAnimatedValue();
-                instructionCard.setLayoutParams(params);
-            });
-            heightAnimator.setDuration(300);
-            heightAnimator.setInterpolator(new DecelerateInterpolator());
-
-            // Animar saída dos elementos atuais
+            // 2. Animar a saída dos elementos atuais
             instructionText.animate()
                     .translationX(-instructionText.getWidth())
                     .alpha(0f)
@@ -651,11 +720,34 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                     .setDuration(300)
                     .setInterpolator(new AccelerateInterpolator())
                     .withEndAction(() -> {
-                        inflateAndSetupRadiusSelector();
+                        // 3. Depois que os elementos saírem, animar o tamanho do card
+                        ValueAnimator heightAnimator = ValueAnimator.ofInt(
+                                instructionCard.getHeight(),
+                                getResources().getDimensionPixelSize(R.dimen.radius_selector_height)
+                        );
+                        
+                        heightAnimator.addUpdateListener(animation -> {
+                            int val = (Integer) animation.getAnimatedValue();
+                            ViewGroup.LayoutParams layoutParams = instructionCard.getLayoutParams();
+                            layoutParams.height = val;
+                            instructionCard.setLayoutParams(layoutParams);
+                        });
+                        
+                        heightAnimator.setDuration(300);
+                        heightAnimator.setInterpolator(new DecelerateInterpolator());
+                        
+                        // 4. Quando o card terminar de crescer, mostrar o novo conteúdo
+                        heightAnimator.addListener(new AnimatorListenerAdapter() {
+                            @Override
+                            public void onAnimationEnd(Animator animation) {
+                                inflateAndSetupRadiusSelector();
+                            }
+                        });
+                        
                         heightAnimator.start();
-                    })
-                    .start();
+                    }).start();
                 
+            currentStep = 2;
         } catch (Exception e) {
             e.printStackTrace();
             showRadiusSelectorWithoutAnimation();
@@ -688,20 +780,125 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             
             // Setup do SeekBar e outros elementos...
             SeekBar radiusSeekBar = radiusSelector.findViewById(R.id.radius_seekbar);
-            TextView radiusValue = radiusSelector.findViewById(R.id.radius_value);
+            EditText radiusValue = radiusSelector.findViewById(R.id.radius_value);
             MaterialButton btnConfirmRadius = radiusSelector.findViewById(R.id.btn_confirm_radius);
             MaterialButton btnBackRadius = radiusSelector.findViewById(R.id.btn_back_radius);
             
-            // Configurar valor inicial
-            updateRadiusText(radiusValue, RADIUS_OPTIONS[2]); // 1.0 km default
-            radiusSeekBar.setProgress(2); // Posição do 1.0 km
+            // Configurar o valor inicial
+            int initialProgress = getProgressForRadius(selectedRadius);
+            radiusSeekBar.setProgress(initialProgress);
+            radiusValue.setText(String.format(Locale.getDefault(), "%.2f", selectedRadius));
             
+            // Configurar o EditText
+            radiusValue.setOnEditorActionListener((v, actionId, event) -> {
+                if (actionId == EditorInfo.IME_ACTION_DONE) {
+                    try {
+                        double value = Double.parseDouble(radiusValue.getText().toString());
+                        if (value > 0 && value <= 5.0) {
+                            selectedRadius = value;
+                            // Encontrar o valor mais próximo no RADIUS_OPTIONS
+                            int closestIndex = 0;
+                            double minDiff = Math.abs(RADIUS_OPTIONS[0] - value);
+                            
+                            for (int i = 1; i < RADIUS_OPTIONS.length; i++) {
+                                double diff = Math.abs(RADIUS_OPTIONS[i] - value);
+                                if (diff < minDiff) {
+                                    minDiff = diff;
+                                    closestIndex = i;
+                                }
+                            }
+                            radiusSeekBar.setProgress(closestIndex);
+                            updateRadiusCircle();
+                        } else {
+                            // Valor fora do intervalo, resetar para 1.0
+                            updateRadiusText(radiusValue, 1.0);
+                            radiusSeekBar.setProgress(initialProgress);
+                        }
+                    } catch (NumberFormatException e) {
+                        // Entrada inválida, resetar para 1.0
+                        updateRadiusText(radiusValue, 1.0);
+                        radiusSeekBar.setProgress(initialProgress);
+                    }
+                    hideKeyboard();
+                    return true;
+                }
+                return false;
+            });
+
+            // Atualizar o SeekBar quando o foco do EditText é perdido
+            radiusValue.setOnFocusChangeListener((v, hasFocus) -> {
+                if (!hasFocus) {
+                    try {
+                        double value = Double.parseDouble(radiusValue.getText().toString());
+                        if (value > 0 && value <= 5.0) {
+                            selectedRadius = value;
+                            updateRadiusCircle();
+                        } else {
+                            updateRadiusText(radiusValue, 1.0);
+                            radiusSeekBar.setProgress(initialProgress);
+                        }
+                    } catch (NumberFormatException e) {
+                        updateRadiusText(radiusValue, 1.0);
+                        radiusSeekBar.setProgress(initialProgress);
+                    }
+                }
+            });
+
+            // Atualizar o EditText quando o SeekBar muda
             radiusSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                 @Override
                 public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                    selectedRadius = RADIUS_OPTIONS[progress];
-                    updateRadiusText(radiusValue, selectedRadius);
-                    updateRadiusCircle();
+                    if (fromUser) {
+                        // Converter a posição do SeekBar para o valor do raio
+                        switch (progress) {
+                            case 0:
+                                selectedRadius = 0.1; // 100m
+                                break;
+                            case 1:
+                                selectedRadius = 0.25; // 250m
+                                break;
+                            case 2:
+                                selectedRadius = 0.5; // 500m
+                                break;
+                            case 3:
+                                selectedRadius = 1.0;
+                                break;
+                            case 4:
+                                selectedRadius = 1.5;
+                                break;
+                            case 5:
+                                selectedRadius = 2.0;
+                                break;
+                            case 6:
+                                selectedRadius = 3.0;
+                                break;
+                            case 7:
+                                selectedRadius = 4.0;
+                                break;
+                            case 8:
+                                selectedRadius = 5.0;
+                                break;
+                            case 9:
+                                selectedRadius = 6.0;
+                                break;
+                            case 10:
+                                selectedRadius = 7.0;
+                                break;
+                            case 11:
+                                selectedRadius = 8.0;
+                                break;
+                            case 12:
+                                selectedRadius = 9.0;
+                                break;
+                            case 13:
+                                selectedRadius = 10.0;
+                                break;
+                        }
+                        
+                        // Atualizar o texto e o círculo
+                        radiusValue.setText(String.format(Locale.getDefault(), "%.2f", selectedRadius));
+                        updateRadiusCircle();
+                    }
                 }
 
                 @Override
@@ -712,9 +909,8 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             });
 
             btnConfirmRadius.setOnClickListener(v -> {
-                // TODO: Salvar localização e raio selecionados
-                finish();
-                overridePendingTransition(0, R.anim.slide_out_right);
+                v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
+                showRouteOptions();
             });
 
             btnBackRadius.setOnClickListener(v -> restoreOriginalUI());
@@ -730,6 +926,9 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                     .setDuration(300)
                     .setInterpolator(new DecelerateInterpolator())
                     .start();
+
+            // Mostrar o círculo inicial com o raio padrão
+            updateRadiusCircle();
         } catch (Exception e) {
             e.printStackTrace();
             restoreOriginalUI();
@@ -738,27 +937,38 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
 
     private void restoreOriginalUI() {
         View currentContent = cardContent.getChildAt(0);
-        MaterialCardView instructionCard = (MaterialCardView) findViewById(R.id.instruction_card);
+        MaterialCardView instructionCard = findViewById(R.id.instruction_card);
+        View topBarContainer = findViewById(R.id.top_bar_container);
+        
+        // Limpar o foco de qualquer EditText ativo
+        View currentFocus = getCurrentFocus();
+        if (currentFocus != null) {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            imm.hideSoftInputFromWindow(currentFocus.getWindowToken(), 0);
+            currentFocus.clearFocus();
+        }
+        
+        // Limpar o mapa e readicionar apenas o marcador
+        mMap.clear();
+        if (selectedLocation != null) {
+            mMap.addMarker(new MarkerOptions().position(selectedLocation));
+        }
+        
+        // Reabilitar os gestos do mapa
+        mMap.getUiSettings().setAllGesturesEnabled(true);
+        mMap.setOnMapClickListener(latLng -> {
+            mMap.clear();
+            selectedLocation = latLng;
+            mMap.addMarker(new MarkerOptions().position(latLng));
+            showConfirmButton();
+        });
+        mMap.setOnMarkerClickListener(null);
+        
+        // Remover o padding ao voltar para a tela de seleção de localização
+        mMap.setPadding(0, 0, 0, 0);
         
         if (currentContent != null) {
-            // Inflar o layout original sem adicionar à view para medir sua altura
-            View originalContent = getLayoutInflater().inflate(R.layout.map_instruction_content, null);
-            originalContent.measure(
-                View.MeasureSpec.makeMeasureSpec(cardContent.getWidth(), View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-            );
-            int targetHeight = originalContent.getMeasuredHeight();
-
-            // Animar a altura do card
-            ValueAnimator heightAnimator = ValueAnimator.ofInt(instructionCard.getHeight(), targetHeight);
-            heightAnimator.addUpdateListener(animation -> {
-                ViewGroup.LayoutParams params = instructionCard.getLayoutParams();
-                params.height = (int) animation.getAnimatedValue();
-                instructionCard.setLayoutParams(params);
-            });
-            heightAnimator.setDuration(300);
-            heightAnimator.setInterpolator(new DecelerateInterpolator());
-
+            // 1. Primeiro animar a saída do conteúdo atual
             currentContent.animate()
                     .translationX(cardContent.getWidth())
                     .alpha(0f)
@@ -767,62 +977,488 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
                     .withEndAction(() -> {
                         cardContent.removeAllViews();
                         
-                        // Inflar e adicionar o layout original
-                        originalContent.setTranslationX(-cardContent.getWidth());
-                        originalContent.setAlpha(0f);
-                        cardContent.addView(originalContent);
+                        // 2. Animar o card voltando ao tamanho original
+                        ValueAnimator heightAnimator = ValueAnimator.ofInt(
+                                instructionCard.getHeight(),
+                                getResources().getDimensionPixelSize(R.dimen.instruction_card_height)
+                        );
                         
-                        // Configurar os botões
-                        btnConfirmLocation = originalContent.findViewById(R.id.btn_confirm_location);
-                        btnBack = originalContent.findViewById(R.id.btn_back);
-                        setupButtons();
+                        heightAnimator.addUpdateListener(animation -> {
+                            int val = (Integer) animation.getAnimatedValue();
+                            ViewGroup.LayoutParams layoutParams = instructionCard.getLayoutParams();
+                            layoutParams.height = val;
+                            instructionCard.setLayoutParams(layoutParams);
+                        });
                         
-                        if (selectedLocation != null) {
-                            btnConfirmLocation.setVisibility(View.VISIBLE);
-                            btnConfirmLocation.setAlpha(1f);
-                        }
+                        heightAnimator.setDuration(300);
+                        heightAnimator.setInterpolator(new DecelerateInterpolator());
                         
-                        // Animar entrada do conteúdo
-                        originalContent.animate()
-                                .translationX(0f)
-                                .alpha(1f)
-                                .setDuration(300)
-                                .setInterpolator(new DecelerateInterpolator())
-                                .start();
-                            
+                        // 3. Quando o card terminar de diminuir
+                        heightAnimator.addListener(new AnimatorListenerAdapter() {
+                            @Override
+                            public void onAnimationEnd(Animator animation) {
+                                // Preparar a barra superior para a animação
+                                topBarContainer.setTranslationY(-topBarContainer.getHeight());
+                                topBarContainer.setAlpha(0f);
+                                topBarContainer.setVisibility(View.VISIBLE);
+                                
+                                // Animar a barra superior descendo
+                                topBarContainer.animate()
+                                        .translationY(0f)
+                                        .alpha(1f)
+                                        .setDuration(300)
+                                        .setInterpolator(new DecelerateInterpolator());
+                                
+                                // Mostrar o conteúdo original
+                                View originalContent = getLayoutInflater().inflate(
+                                    R.layout.map_instruction_content, 
+                                    cardContent, 
+                                    false
+                                );
+                                cardContent.addView(originalContent);
+                                
+                                // Configurar os botões novamente
+                                btnConfirmLocation = originalContent.findViewById(R.id.btn_confirm_location);
+                                btnBack = originalContent.findViewById(R.id.btn_back);
+                                setupButtons();
+                                
+                                if (selectedLocation != null) {
+                                    btnConfirmLocation.setVisibility(View.VISIBLE);
+                                    btnConfirmLocation.setAlpha(1f);
+                                }
+                                
+                                // Animar entrada do conteúdo original
+                                originalContent.setTranslationX(-cardContent.getWidth());
+                                originalContent.setAlpha(0f);
+                                originalContent.animate()
+                                        .translationX(0f)
+                                        .alpha(1f)
+                                        .setDuration(300)
+                                        .setInterpolator(new DecelerateInterpolator())
+                                        .start();
+                            }
+                        });
+                        
                         heightAnimator.start();
                     }).start();
         }
+        
+        // Limpar todas as referências
+        currentCircle = null;
+        currentMarker = null;
+        if (radiusAnimator != null) {
+            radiusAnimator.cancel();
+            radiusAnimator = null;
+        }
+        currentStep = 1;
     }
 
-    private void updateRadiusText(TextView textView, double radius) {
+    private void updateRadiusText(EditText editText, double radius) {
         if (radius >= 1.0) {
-            textView.setText(String.format(Locale.getDefault(), "%.1f km", radius));
+            editText.setText(String.format(Locale.getDefault(), "%.1f", radius));
         } else {
-            textView.setText(String.format(Locale.getDefault(), "%d m", (int)(radius * 1000)));
+            editText.setText(String.format(Locale.getDefault(), "%.2f", radius));
         }
     }
 
     private void updateRadiusCircle() {
-        if (selectedLocation != null) {
-            if (radiusCircle != null) {
-                radiusCircle.remove();
+        if (mMap != null && selectedLocation != null) {
+            // Remover apenas os marcadores, não o círculo
+            if (currentCircle == null) {
+                mMap.clear();
+                // Primeira vez - criar o círculo
+                currentCircle = mMap.addCircle(new CircleOptions()
+                    .center(selectedLocation)
+                    .radius(selectedRadius * 1000)
+                    .strokeWidth(2)
+                    .strokeColor(getResources().getColor(R.color.accent, getTheme()))
+                    .fillColor(getResources().getColor(R.color.accent_tertiary, getTheme()) & 0x40FFFFFF));
+            } else {
+                // Remover marcador anterior se existir
+                if (currentMarker != null) {
+                    currentMarker.remove();
+                }
+                
+                // Animar a mudança do raio
+                if (radiusAnimator != null) {
+                    radiusAnimator.cancel();
+                }
+                
+                float oldRadius = (float) currentCircle.getRadius();
+                float newRadius = (float) (selectedRadius * 1000);
+                
+                radiusAnimator = ValueAnimator.ofFloat(oldRadius, newRadius);
+                radiusAnimator.setDuration(300);
+                radiusAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
+                radiusAnimator.addUpdateListener(animation -> {
+                    float animatedRadius = (float) animation.getAnimatedValue();
+                    currentCircle.setRadius(animatedRadius);
+                });
+                radiusAnimator.start();
             }
             
-            CircleOptions circleOptions = new CircleOptions()
-                    .center(selectedLocation)
-                    .radius(selectedRadius * 1000) // Converter km para metros
-                    .strokeWidth(2)
-                    .strokeColor(Color.argb(255, 33, 150, 243))
-                    .fillColor(Color.argb(50, 33, 150, 243));
+            // Adicionar o novo marcador e guardar a referência
+            currentMarker = mMap.addMarker(new MarkerOptions().position(selectedLocation));
             
-            radiusCircle = mMap.addCircle(circleOptions);
+            // Atualizar o zoom do mapa baseado no novo raio
+            LatLngBounds bounds = calculateBoundsForRadius(selectedLocation, selectedRadius);
+            mMap.animateCamera(
+                CameraUpdateFactory.newLatLngBounds(bounds, 100),
+                300,
+                null
+            );
         }
     }
 
+    // Método para calcular os bounds baseado no raio
+    private LatLngBounds calculateBoundsForRadius(LatLng center, double radiusInKm) {
+        // Multiplicar o raio por 2.5 apenas para o cálculo do zoom
+        double zoomRadius = radiusInKm * 1.3;
+        
+        // Converter o raio aumentado de km para graus
+        double radiusInDegrees = zoomRadius / 111.32;
+        
+        // Criar um bound que inclua o círculo completo
+        LatLngBounds.Builder builder = new LatLngBounds.Builder();
+        builder.include(new LatLng(center.latitude + radiusInDegrees, center.longitude + radiusInDegrees));
+        builder.include(new LatLng(center.latitude - radiusInDegrees, center.longitude - radiusInDegrees));
+        
+        return builder.build();
+    }
+
     private void updateUIState(boolean locationSelected) {
-        btnConfirmLocation.setVisibility(locationSelected ? View.VISIBLE : View.GONE);
-        btnConfirmLocation.setAlpha(locationSelected ? 1f : 0f);
-        // Atualizar outros elementos UI conforme necessário
+        if (locationSelected) {
+            // Primeiro mostrar o botão confirm com animação
+            btnConfirmLocation.setVisibility(View.VISIBLE);
+            btnConfirmLocation.setAlpha(0f);
+            btnConfirmLocation.setScaleX(0.8f);
+            btnConfirmLocation.setScaleY(0.8f);
+            
+            btnConfirmLocation.animate()
+                    .alpha(1f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(300)
+                    .setInterpolator(new DecelerateInterpolator())
+                    .start();
+
+            // Configurar o clique com a sequência correta de animações
+            btnConfirmLocation.setOnClickListener(v -> {
+                View instructionText = cardContent.findViewById(R.id.instruction_text);
+                View buttonsContainer = cardContent.findViewById(R.id.buttons_container);
+                MaterialCardView instructionCard = findViewById(R.id.instruction_card);
+
+                // 1. Primeiro animar a saída dos elementos atuais
+                instructionText.animate()
+                        .translationX(-instructionText.getWidth())
+                        .alpha(0f)
+                        .setDuration(300)
+                        .setInterpolator(new AccelerateInterpolator());
+
+                buttonsContainer.animate()
+                        .translationX(-buttonsContainer.getWidth())
+                        .alpha(0f)
+                        .setDuration(300)
+                        .setInterpolator(new AccelerateInterpolator())
+                        .withEndAction(() -> {
+                            // 2. Depois que os elementos saírem, animar o tamanho do card
+                            ValueAnimator heightAnimator = ValueAnimator.ofInt(
+                                    instructionCard.getHeight(),
+                                    getResources().getDimensionPixelSize(R.dimen.radius_selector_height)
+                            );
+                            
+                            heightAnimator.addUpdateListener(animation -> {
+                                int val = (Integer) animation.getAnimatedValue();
+                                ViewGroup.LayoutParams layoutParams = instructionCard.getLayoutParams();
+                                layoutParams.height = val;
+                                instructionCard.setLayoutParams(layoutParams);
+                            });
+                            
+                            heightAnimator.setDuration(300);
+                            heightAnimator.setInterpolator(new DecelerateInterpolator());
+                            
+                            // 3. Quando o card terminar de crescer, mostrar o novo conteúdo
+                            heightAnimator.addListener(new AnimatorListenerAdapter() {
+                                @Override
+                                public void onAnimationEnd(Animator animation) {
+                                    inflateAndSetupRadiusSelector();
+                                }
+                            });
+                            
+                            heightAnimator.start();
+                        }).start();
+            });
+        } else {
+            btnConfirmLocation.animate()
+                    .alpha(0f)
+                    .scaleX(0.8f)
+                    .scaleY(0.8f)
+                    .setDuration(200)
+                    .setInterpolator(new AccelerateInterpolator())
+                    .withEndAction(() -> btnConfirmLocation.setVisibility(View.GONE))
+                    .start();
+        }
+    }
+
+    // Método auxiliar para converter raio em progresso do SeekBar
+    private int getProgressForRadius(double radius) {
+        if (radius == 0.1) return 0;
+        if (radius == 0.25) return 1;
+        if (radius == 0.5) return 2;
+        if (radius == 1.0) return 3;
+        if (radius == 1.5) return 4;
+        if (radius == 2.0) return 5;
+        if (radius == 3.0) return 6;
+        if (radius == 4.0) return 7;
+        if (radius == 5.0) return 8;
+        if (radius == 6.0) return 9;
+        if (radius == 7.0) return 10;
+        if (radius == 8.0) return 11;
+        if (radius == 9.0) return 12;
+        if (radius == 10.0) return 13;
+        return 3; // Valor padrão (1.0 km)
+    }
+
+    private double getRadiusForProgress(int progress) {
+        switch (progress) {
+            case 0:
+                return 0.1; // 100m
+            case 1:
+                return 0.25; // 250m
+            case 2:
+                return 0.5; // 500m
+            case 3:
+                return 1.0;
+            case 4:
+                return 1.5;
+            case 5:
+                return 2.0;
+            case 6:
+                return 3.0;
+            case 7:
+                return 4.0;
+            case 8:
+                return 5.0;
+            case 9:
+                return 6.0;
+            case 10:
+                return 7.0;
+            case 11:
+                return 8.0;
+            case 12:
+                return 9.0;
+            case 13:
+                return 10.0;
+            default:
+                return 1.0; // Valor padrão
+        }
+    }
+
+    private void showRouteOptions() {
+        View routeOptions = getLayoutInflater().inflate(R.layout.route_options, null);
+        
+        // Animar saída do conteúdo atual
+        cardContent.animate()
+                .alpha(0f)
+                .translationX(-cardContent.getWidth())
+                .setDuration(200)
+                .setInterpolator(new AccelerateInterpolator())
+                .withEndAction(() -> {
+                    cardContent.removeAllViews();
+                    cardContent.setAlpha(1f); // Resetar alpha
+                    cardContent.setTranslationX(0f); // Resetar translação
+                    
+                    // Animar mudança de altura do card
+                    ValueAnimator heightAnimator = ValueAnimator.ofInt(
+                        instructionCard.getHeight(),
+                        (int) getResources().getDimension(R.dimen.route_options_height)
+                    );
+                    
+                    heightAnimator.addUpdateListener(animation -> {
+                        int val = (int) animation.getAnimatedValue();
+                        ViewGroup.LayoutParams layoutParams = instructionCard.getLayoutParams();
+                        layoutParams.height = val;
+                        instructionCard.setLayoutParams(layoutParams);
+                    });
+                    
+                    heightAnimator.setDuration(300);
+                    heightAnimator.setInterpolator(new DecelerateInterpolator());
+                    
+                    heightAnimator.addListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            // Adicionar novo conteúdo
+                            cardContent.addView(routeOptions);
+                            
+                            // Configurar estado inicial da animação
+                            routeOptions.setTranslationX(cardContent.getWidth());
+                            routeOptions.setAlpha(0f);
+                            routeOptions.setVisibility(View.VISIBLE);
+                            
+                            // Animar entrada
+                            routeOptions.animate()
+                                    .translationX(0f)
+                                    .alpha(1f)
+                                    .setDuration(200)
+                                    .setInterpolator(new DecelerateInterpolator())
+                                    .start();
+                                    
+                            // Configurar animações de clique dos botões
+                            setupRouteOptionsButtonAnimations(routeOptions);
+                        }
+                    });
+                    
+                    heightAnimator.start();
+                })
+                .start();
+        currentStep = 3;
+    }
+
+    private void setupRouteOptionsButtonAnimations(View routeOptions) {
+        MaterialButton addRouteButton = routeOptions.findViewById(R.id.btn_add_route);
+        MaterialButton oneTimeButton = routeOptions.findViewById(R.id.btn_one_time);
+        
+        View.OnTouchListener touchListener = (v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                v.animate()
+                    .scaleX(0.95f)
+                    .scaleY(0.95f)
+                    .setDuration(100)
+                    .start();
+            } else if (event.getAction() == MotionEvent.ACTION_UP || 
+                       event.getAction() == MotionEvent.ACTION_CANCEL) {
+                v.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(100)
+                    .start();
+            }
+            return false;
+        };
+        
+        addRouteButton.setOnTouchListener(touchListener);
+        oneTimeButton.setOnTouchListener(touchListener);
+    }
+
+    @Override
+    public void onBackPressed() {
+        switch (currentStep) {
+            case 3:
+                // Voltar do conjunto 3 para o 2 (opções de rota -> seletor de raio)
+                View radiusSelector = getLayoutInflater().inflate(R.layout.radius_selector, null);
+                
+                // Configurar o estado anterior do seletor de raio
+                SeekBar radiusSeekBar = radiusSelector.findViewById(R.id.radius_seekbar);
+                EditText radiusValue = radiusSelector.findViewById(R.id.radius_value);
+                
+                radiusSeekBar.setProgress(getProgressForRadius(selectedRadius));
+                radiusValue.setText(String.format(Locale.getDefault(), "%.2f", selectedRadius));
+                
+                // Animar saída do conteúdo atual
+                cardContent.animate()
+                        .alpha(0f)
+                        .translationX(cardContent.getWidth())
+                        .setDuration(200)
+                        .setInterpolator(new AccelerateInterpolator())
+                        .withEndAction(() -> {
+                            cardContent.removeAllViews();
+                            cardContent.setAlpha(1f);
+                            cardContent.setTranslationX(0f);
+                            
+                            // Animar mudança de altura do card
+                            ValueAnimator heightAnimator = ValueAnimator.ofInt(
+                                instructionCard.getHeight(),
+                                (int) getResources().getDimension(R.dimen.radius_selector_height)
+                            );
+                            
+                            heightAnimator.addUpdateListener(animation -> {
+                                int val = (int) animation.getAnimatedValue();
+                                ViewGroup.LayoutParams layoutParams = instructionCard.getLayoutParams();
+                                layoutParams.height = val;
+                                instructionCard.setLayoutParams(layoutParams);
+                            });
+                            
+                            heightAnimator.setDuration(300);
+                            heightAnimator.setInterpolator(new DecelerateInterpolator());
+                            
+                            heightAnimator.addListener(new AnimatorListenerAdapter() {
+                                @Override
+                                public void onAnimationEnd(Animator animation) {
+                                    // Adicionar novo conteúdo
+                                    cardContent.addView(radiusSelector);
+                                    
+                                    // Configurar estado inicial da animação
+                                    radiusSelector.setTranslationX(-cardContent.getWidth());
+                                    radiusSelector.setAlpha(0f);
+                                    radiusSelector.setVisibility(View.VISIBLE);
+                                    
+                                    // Animar entrada
+                                    radiusSelector.animate()
+                                            .translationX(0f)
+                                            .alpha(1f)
+                                            .setDuration(200)
+                                            .setInterpolator(new DecelerateInterpolator())
+                                            .start();
+                                            
+                                    // Reconfigurar listeners dos botões
+                                    setupRadiusSelectorListeners(radiusSelector);
+                                }
+                            });
+                            
+                            heightAnimator.start();
+                        })
+                        .start();
+                
+                currentStep = 2;
+                break;
+            
+            case 2:
+                // Voltar do conjunto 2 para o 1 (seletor de raio -> seleção de local)
+                restoreOriginalUI();
+                currentStep = 1;
+                break;
+            
+            case 1:
+                // Voltar do conjunto 1 para a tela inicial
+                super.onBackPressed();
+                overridePendingTransition(0, R.anim.slide_out_right);
+                break;
+        }
+    }
+
+    private void setupRadiusSelectorListeners(View radiusSelector) {
+        SeekBar radiusSeekBar = radiusSelector.findViewById(R.id.radius_seekbar);
+        EditText radiusValue = radiusSelector.findViewById(R.id.radius_value);
+        MaterialButton confirmButton = radiusSelector.findViewById(R.id.btn_confirm_radius);
+        MaterialButton backButton = radiusSelector.findViewById(R.id.btn_back_radius);
+        
+        // Configurar listeners do SeekBar
+        radiusSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser) {
+                    selectedRadius = getRadiusForProgress(progress);
+                    radiusValue.setText(String.format(Locale.getDefault(), "%.2f", selectedRadius));
+                    updateRadiusCircle();
+                }
+            }
+            
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+            
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+        
+        // Configurar listeners dos botões
+        confirmButton.setOnClickListener(v -> {
+            v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
+            showRouteOptions();
+        });
+        
+        backButton.setOnClickListener(v -> {
+            v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
+            restoreOriginalUI();
+        });
     }
 } 

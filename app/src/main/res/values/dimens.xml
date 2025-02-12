@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Altura do card de instruções inicial -->
+    <dimen name="instruction_card_height">105dp</dimen>
+    
+    <!-- Altura do card quando mostra o seletor de raio -->
+    <dimen name="radius_selector_height">205dp</dimen>
+    
+    <!-- Altura do card quando mostra as opções de rota -->
+    <dimen name="route_options_height">105dp</dimen>
+    
+    <!-- Padding para o bounds do mapa -->
+    <dimen name="map_padding">100dp</dimen>
+</resources> 

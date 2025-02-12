@@ -237,9 +237,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
                 android:gravity="center">
 
                 <TextView
@@ -247,6 +244,7 @@
                     android:layout_height="wrap_content"
                     android:fontFamily="@font/roboto_medium"
                     android:text="tap or search to select your destination"
+                    android:layout_marginTop="16dp"
                     android:textAlignment="center"
                     android:textColor="@color/text_primary"
                     android:textSize="15sp" />
@@ -256,7 +254,8 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:layout_marginTop="8dp"
-                    android:paddingHorizontal="4dp">
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp">
 
                     <!-- Botão Confirm -->
                     <com.google.android.material.button.MaterialButton
@@ -286,6 +285,7 @@
                         android:textAllCaps="false"
                         android:textColor="@color/text_primary"
                         android:layout_marginStart="4dp"
+                        android:layout_marginBottom="16dp"
                         app:backgroundTint="@color/surface_dark"
                         app:strokeColor="@color/accent"
                         app:strokeWidth="1dp"

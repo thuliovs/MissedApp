@@ -26,13 +26,39 @@ public class LocationCheckActivity extends AppCompatActivity {
         MaterialButton notNowButton = findViewById(R.id.btn_not_now);
 
         turnOnButton.setOnClickListener(v -> {
-            Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-            startActivity(intent);
+            v.animate()
+                .scaleX(0.95f)
+                .scaleY(0.95f)
+                .setDuration(100)
+                .withEndAction(() -> 
+                    v.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(100)
+                        .withEndAction(() -> {
+                            Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                            startActivity(intent);
+                        })
+                        .start())
+                .start();
         });
 
         notNowButton.setOnClickListener(v -> {
-            finish();
-            overridePendingTransition(0, R.anim.slide_out_right);
+            v.animate()
+                .scaleX(0.95f)
+                .scaleY(0.95f)
+                .setDuration(100)
+                .withEndAction(() -> 
+                    v.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(100)
+                        .withEndAction(() -> {
+                            finish();
+                            overridePendingTransition(0, R.anim.slide_out_right);
+                        })
+                        .start())
+                .start();
         });
     }
 
