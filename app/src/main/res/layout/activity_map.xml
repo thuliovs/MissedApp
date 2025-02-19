@@ -215,7 +215,7 @@
 
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Card com instruções (agora com marginBottom ajustável) -->
+        <!-- Card com instruções (agora vazio) -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/instruction_card"
             android:layout_width="match_parent"
@@ -237,63 +237,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:gravity="center">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/roboto_medium"
-                    android:text="tap or search to select your destination"
-                    android:layout_marginTop="16dp"
-                    android:textAlignment="center"
-                    android:textColor="@color/text_primary"
-                    android:textSize="15sp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginTop="8dp"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="14dp">
-
-                    <!-- Botão Confirm -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btn_confirm_location"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="52dp"
-                        android:text="confirm"
-                        android:textSize="15sp"
-                        android:fontFamily="@font/roboto_medium"
-                        android:textAllCaps="false"
-                        android:textColor="@color/background_dark"
-                        android:visibility="gone"
-                        android:alpha="0"
-                        app:backgroundTint="@color/accent"
-                        app:cornerRadius="24dp" />
-
-                    <!-- Botão Cancel -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btn_back"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="52dp"
-                        android:text="cancel"
-                        android:textSize="15sp"
-                        android:fontFamily="@font/roboto_medium"
-                        android:textAllCaps="false"
-                        android:textColor="@color/text_primary"
-                        android:layout_marginStart="4dp"
-                        android:layout_marginBottom="16dp"
-                        app:backgroundTint="@color/surface_dark"
-                        app:strokeColor="@color/accent"
-                        app:strokeWidth="1dp"
-                        app:cornerRadius="24dp" />
-
-                </LinearLayout>
-
-            </LinearLayout>
+                android:gravity="center"/>
 
         </com.google.android.material.card.MaterialCardView>
 

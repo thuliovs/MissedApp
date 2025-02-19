@@ -9,6 +9,9 @@
     <!-- Altura do card quando mostra as opções de rota -->
     <dimen name="route_options_height">105dp</dimen>
     
+    <!-- Altura do card quando mostra o monitoramento -->
+    <dimen name="monitoring_content_height">105dp</dimen>
+    
     <!-- Padding para o bounds do mapa -->
     <dimen name="map_padding">100dp</dimen>
 </resources> 

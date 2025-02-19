@@ -6,6 +6,7 @@ import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.content.pm.PackageManager;
 import android.location.Location;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -76,6 +77,13 @@ import android.graphics.Point;
 import com.google.android.gms.maps.CameraUpdate;
 import android.widget.Toast;
 import com.google.android.gms.common.api.ApiException;
+import android.content.Intent;
+import android.app.Service;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 
 public class MapActivity extends AppCompatActivity implements OnMapReadyCallback {
 
@@ -113,23 +121,29 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         // Inicializar views primeiro
         instructionCard = findViewById(R.id.instruction_card);
         cardContent = findViewById(R.id.card_content);
-        btnConfirmLocation = findViewById(R.id.btn_confirm_location);
-        btnBack = findViewById(R.id.btn_back);
         
+        // Carregar o primeiro conjunto de elementos
+        View instructionContent = getLayoutInflater().inflate(R.layout.map_instruction_content, null);
+        cardContent.addView(instructionContent);
+        
+        // Configurar os botões do primeiro conjunto
+        setupButtons(instructionContent);
+
         // Inicializar FusedLocationClient em background
         new Thread(() -> {
             fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         }).start();
         
         // Inicializar Places
-        if (!Places.isInitialized()) {
-            Places.initialize(getApplicationContext(), getString(R.string.google_maps_key));
-        }
+        Places.initialize(getApplicationContext(), getString(R.string.google_maps_key));
         placesClient = Places.createClient(this);
         
-        // Setup do mapa e botões
-        setupMapFragment();
-        setupButtons();
+        // Configurar o mapa
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
+                .findFragmentById(R.id.map);
+        if (mapFragment != null) {
+            mapFragment.getMapAsync(this);
+        }
 
         // Se tiver permissão, já começa a carregar a localização em paralelo
         if (checkLocationPermission()) {
@@ -148,50 +162,21 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         }
     }
 
-    private void setupButtons() {
-        // Configurar botão Confirm
-        btnConfirmLocation.setOnClickListener(v -> {
+    private void setupButtons(View instructionContent) {
+        // Primeiro encontrar as referências dos botões
+        btnConfirmLocation = instructionContent.findViewById(R.id.btn_confirm_location);
+        btnBack = instructionContent.findViewById(R.id.btn_back);
+        
+        // Depois configurar os listeners
+        if (btnConfirmLocation != null && btnBack != null) {
+            setupButtonListeners();
+            
+            // Se já tiver uma localização selecionada, mostrar o botão confirm
             if (selectedLocation != null) {
-                showRadiusSelector();
+                btnConfirmLocation.setVisibility(View.VISIBLE);
+                btnConfirmLocation.setAlpha(1f);
             }
-        });
-
-        // Configurar botão Back
-        btnBack.setOnClickListener(v -> {
-            v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
-            // Resetar o raio para o valor padrão apenas quando voltar para a tela inicial
-            selectedRadius = DEFAULT_RADIUS;
-            finish();
-            overridePendingTransition(0, R.anim.slide_out_right);
-        });
-
-        // Adicionar animações de toque
-        View.OnTouchListener touchListener = (v, event) -> {
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    v.animate()
-                        .scaleX(0.95f)
-                        .scaleY(0.95f)
-                        .setDuration(100)
-                        .start();
-                    break;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    v.animate()
-                        .scaleX(1f)
-                        .scaleY(1f)
-                        .setDuration(100)
-                        .start();
-                    if (event.getAction() == MotionEvent.ACTION_UP) {
-                        v.performClick();
-                    }
-                    break;
-            }
-            return true;
-        };
-
-        btnConfirmLocation.setOnTouchListener(touchListener);
-        btnBack.setOnTouchListener(touchListener);
+        }
     }
 
     @Override
@@ -936,7 +921,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
     }
 
     private void restoreOriginalUI() {
-        View currentContent = cardContent.getChildAt(0);
+        View instructionContent = getLayoutInflater().inflate(R.layout.map_instruction_content, null);
         MaterialCardView instructionCard = findViewById(R.id.instruction_card);
         View topBarContainer = findViewById(R.id.top_bar_container);
         
@@ -945,112 +930,88 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         if (currentFocus != null) {
             InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
             imm.hideSoftInputFromWindow(currentFocus.getWindowToken(), 0);
-            currentFocus.clearFocus();
         }
         
-        // Limpar o mapa e readicionar apenas o marcador
-        mMap.clear();
-        if (selectedLocation != null) {
-            mMap.addMarker(new MarkerOptions().position(selectedLocation));
-        }
+        // Resetar padding do mapa
+        mMap.setPadding(0, 0, 0, 0);
         
-        // Reabilitar os gestos do mapa
+        if (cardContent.getChildCount() > 0) {
+            // 1. Primeiro animar a saída do conteúdo atual
+            cardContent.getChildAt(0).animate()
+                .translationX(cardContent.getWidth())
+                .alpha(0f)
+                .setDuration(200)
+                .setInterpolator(new AccelerateInterpolator())
+                .withEndAction(() -> {
+                    cardContent.removeAllViews();
+                    
+                    // 2. Animar o card voltando ao tamanho original
+                    ValueAnimator heightAnimator = ValueAnimator.ofInt(
+                        instructionCard.getHeight(),
+                        getResources().getDimensionPixelSize(R.dimen.instruction_card_height)
+                    );
+                    
+                    heightAnimator.addUpdateListener(animation -> {
+                        int val = (int) animation.getAnimatedValue();
+                        ViewGroup.LayoutParams layoutParams = instructionCard.getLayoutParams();
+                        layoutParams.height = val;
+                        instructionCard.setLayoutParams(layoutParams);
+                    });
+                    
+                    heightAnimator.setDuration(300);
+                    heightAnimator.setInterpolator(new DecelerateInterpolator());
+                    
+                    heightAnimator.addListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            // Preparar a barra superior para a animação
+                            topBarContainer.setTranslationY(-topBarContainer.getHeight());
+                            topBarContainer.setAlpha(0f);
+                            topBarContainer.setVisibility(View.VISIBLE);
+                            
+                            // Animar a barra superior descendo
+                            topBarContainer.animate()
+                                .translationY(0f)
+                                .alpha(1f)
+                                .setDuration(300)
+                                .setInterpolator(new DecelerateInterpolator());
+                            
+                            // Mostrar o conteúdo original
+                            cardContent.addView(instructionContent);
+                            
+                            // Configurar os botões novamente
+                            setupButtons(instructionContent);
+                            
+                            // Animar entrada do conteúdo original
+                            instructionContent.setTranslationX(-cardContent.getWidth());
+                            instructionContent.setAlpha(0f);
+                            instructionContent.animate()
+                                .translationX(0f)
+                                .alpha(1f)
+                                .setDuration(300)
+                                .setInterpolator(new DecelerateInterpolator());
+                        }
+                    });
+                    
+                    heightAnimator.start();
+                })
+                .start();
+        }
+
+        // Reabilitar gestos do mapa e remover círculo
         mMap.getUiSettings().setAllGesturesEnabled(true);
+        if (currentCircle != null) {
+            currentCircle.remove();
+            currentCircle = null;
+        }
+        
+        // Reconfigurar click listener do mapa
         mMap.setOnMapClickListener(latLng -> {
             mMap.clear();
             selectedLocation = latLng;
             mMap.addMarker(new MarkerOptions().position(latLng));
             showConfirmButton();
         });
-        mMap.setOnMarkerClickListener(null);
-        
-        // Remover o padding ao voltar para a tela de seleção de localização
-        mMap.setPadding(0, 0, 0, 0);
-        
-        if (currentContent != null) {
-            // 1. Primeiro animar a saída do conteúdo atual
-            currentContent.animate()
-                    .translationX(cardContent.getWidth())
-                    .alpha(0f)
-                    .setDuration(300)
-                    .setInterpolator(new AccelerateInterpolator())
-                    .withEndAction(() -> {
-                        cardContent.removeAllViews();
-                        
-                        // 2. Animar o card voltando ao tamanho original
-                        ValueAnimator heightAnimator = ValueAnimator.ofInt(
-                                instructionCard.getHeight(),
-                                getResources().getDimensionPixelSize(R.dimen.instruction_card_height)
-                        );
-                        
-                        heightAnimator.addUpdateListener(animation -> {
-                            int val = (Integer) animation.getAnimatedValue();
-                            ViewGroup.LayoutParams layoutParams = instructionCard.getLayoutParams();
-                            layoutParams.height = val;
-                            instructionCard.setLayoutParams(layoutParams);
-                        });
-                        
-                        heightAnimator.setDuration(300);
-                        heightAnimator.setInterpolator(new DecelerateInterpolator());
-                        
-                        // 3. Quando o card terminar de diminuir
-                        heightAnimator.addListener(new AnimatorListenerAdapter() {
-                            @Override
-                            public void onAnimationEnd(Animator animation) {
-                                // Preparar a barra superior para a animação
-                                topBarContainer.setTranslationY(-topBarContainer.getHeight());
-                                topBarContainer.setAlpha(0f);
-                                topBarContainer.setVisibility(View.VISIBLE);
-                                
-                                // Animar a barra superior descendo
-                                topBarContainer.animate()
-                                        .translationY(0f)
-                                        .alpha(1f)
-                                        .setDuration(300)
-                                        .setInterpolator(new DecelerateInterpolator());
-                                
-                                // Mostrar o conteúdo original
-                                View originalContent = getLayoutInflater().inflate(
-                                    R.layout.map_instruction_content, 
-                                    cardContent, 
-                                    false
-                                );
-                                cardContent.addView(originalContent);
-                                
-                                // Configurar os botões novamente
-                                btnConfirmLocation = originalContent.findViewById(R.id.btn_confirm_location);
-                                btnBack = originalContent.findViewById(R.id.btn_back);
-                                setupButtons();
-                                
-                                if (selectedLocation != null) {
-                                    btnConfirmLocation.setVisibility(View.VISIBLE);
-                                    btnConfirmLocation.setAlpha(1f);
-                                }
-                                
-                                // Animar entrada do conteúdo original
-                                originalContent.setTranslationX(-cardContent.getWidth());
-                                originalContent.setAlpha(0f);
-                                originalContent.animate()
-                                        .translationX(0f)
-                                        .alpha(1f)
-                                        .setDuration(300)
-                                        .setInterpolator(new DecelerateInterpolator())
-                                        .start();
-                            }
-                        });
-                        
-                        heightAnimator.start();
-                    }).start();
-        }
-        
-        // Limpar todas as referências
-        currentCircle = null;
-        currentMarker = null;
-        if (radiusAnimator != null) {
-            radiusAnimator.cancel();
-            radiusAnimator = null;
-        }
-        currentStep = 1;
     }
 
     private void updateRadiusText(EditText editText, double radius) {
@@ -1258,59 +1219,56 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
         View routeOptions = getLayoutInflater().inflate(R.layout.route_options, null);
         
         // Animar saída do conteúdo atual
-        cardContent.animate()
-                .alpha(0f)
-                .translationX(-cardContent.getWidth())
-                .setDuration(200)
-                .setInterpolator(new AccelerateInterpolator())
-                .withEndAction(() -> {
-                    cardContent.removeAllViews();
-                    cardContent.setAlpha(1f); // Resetar alpha
-                    cardContent.setTranslationX(0f); // Resetar translação
-                    
-                    // Animar mudança de altura do card
-                    ValueAnimator heightAnimator = ValueAnimator.ofInt(
-                        instructionCard.getHeight(),
-                        (int) getResources().getDimension(R.dimen.route_options_height)
-                    );
-                    
-                    heightAnimator.addUpdateListener(animation -> {
-                        int val = (int) animation.getAnimatedValue();
-                        ViewGroup.LayoutParams layoutParams = instructionCard.getLayoutParams();
-                        layoutParams.height = val;
-                        instructionCard.setLayoutParams(layoutParams);
-                    });
-                    
-                    heightAnimator.setDuration(300);
-                    heightAnimator.setInterpolator(new DecelerateInterpolator());
-                    
-                    heightAnimator.addListener(new AnimatorListenerAdapter() {
-                        @Override
-                        public void onAnimationEnd(Animator animation) {
-                            // Adicionar novo conteúdo
-                            cardContent.addView(routeOptions);
+        View currentContent = cardContent.getChildAt(0);
+        currentContent.animate()
+            .translationX(-currentContent.getWidth())
+            .alpha(0f)
+            .setDuration(300)
+            .setInterpolator(new AccelerateInterpolator())
+            .withEndAction(() -> {
+                cardContent.removeAllViews();
+                
+                // Configurar altura do card
+                ValueAnimator heightAnimator = ValueAnimator.ofInt(
+                    getResources().getDimensionPixelSize(R.dimen.radius_selector_height),
+                    getResources().getDimensionPixelSize(R.dimen.route_options_height)
+                );
+                
+                heightAnimator.addUpdateListener(animation -> {
+                    ViewGroup.LayoutParams params = instructionCard.getLayoutParams();
+                    params.height = (int) animation.getAnimatedValue();
+                    instructionCard.setLayoutParams(params);
+                });
+                
+                heightAnimator.setDuration(300);
+                
+                heightAnimator.addListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        // Adicionar novo conteúdo
+                        cardContent.addView(routeOptions);
+                        
+                        // Configurar estado inicial da animação
+                        routeOptions.setTranslationX(cardContent.getWidth());
+                        routeOptions.setAlpha(0f);
+                        routeOptions.setVisibility(View.VISIBLE);
+                        
+                        // Animar entrada
+                        routeOptions.animate()
+                            .translationX(0f)
+                            .alpha(1f)
+                            .setDuration(200)
+                            .setInterpolator(new DecelerateInterpolator())
+                            .start();
                             
-                            // Configurar estado inicial da animação
-                            routeOptions.setTranslationX(cardContent.getWidth());
-                            routeOptions.setAlpha(0f);
-                            routeOptions.setVisibility(View.VISIBLE);
-                            
-                            // Animar entrada
-                            routeOptions.animate()
-                                    .translationX(0f)
-                                    .alpha(1f)
-                                    .setDuration(200)
-                                    .setInterpolator(new DecelerateInterpolator())
-                                    .start();
-                                    
-                            // Configurar animações de clique dos botões
-                            setupRouteOptionsButtonAnimations(routeOptions);
-                        }
-                    });
-                    
-                    heightAnimator.start();
-                })
-                .start();
+                        // Configurar os listeners dos botões
+                        setupRouteOptionsListeners(routeOptions);
+                    }
+                });
+                
+                heightAnimator.start();
+            })
+            .start();
         currentStep = 3;
     }
 
@@ -1460,5 +1418,129 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
             restoreOriginalUI();
         });
+    }
+
+    private void setupButtonListeners() {
+        // Configurar o listener do botão de confirmar localização
+        btnConfirmLocation.setOnClickListener(v -> {
+            v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
+            showRadiusSelector();
+        });
+
+        // Configurar o listener do botão de voltar
+        btnBack.setOnClickListener(v -> {
+            v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
+            finish();
+            overridePendingTransition(0, R.anim.slide_out_right);
+        });
+
+        // Configurar animação de toque
+        View.OnTouchListener touchListener = (v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                v.animate()
+                    .scaleX(0.95f)
+                    .scaleY(0.95f)
+                    .setDuration(100)
+                    .start();
+            } else if (event.getAction() == MotionEvent.ACTION_UP || 
+                       event.getAction() == MotionEvent.ACTION_CANCEL) {
+                v.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(100)
+                    .start();
+            }
+            return false;
+        };
+
+        btnConfirmLocation.setOnTouchListener(touchListener);
+        btnBack.setOnTouchListener(touchListener);
+    }
+
+    private void showMonitoringContent() {
+        View monitoringContent = getLayoutInflater().inflate(R.layout.monitoring_content, null);
+        
+        // Configurar botão de cancelar
+        MaterialButton btnCancelMonitoring = monitoringContent.findViewById(R.id.btn_cancel_monitoring);
+        btnCancelMonitoring.setOnClickListener(v -> {
+            v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
+            stopLocationMonitoring();
+            finish(); // Fecha a activity
+        });
+        
+        // Animar saída do conteúdo atual
+        View currentContent = cardContent.getChildAt(0);
+        currentContent.animate()
+            .translationX(-currentContent.getWidth())
+            .alpha(0f)
+            .setDuration(300)
+            .setInterpolator(new AccelerateInterpolator())
+            .withEndAction(() -> {
+                cardContent.removeAllViews();
+                cardContent.addView(monitoringContent);
+                
+                // Animar entrada do novo conteúdo
+                monitoringContent.setTranslationX(cardContent.getWidth());
+                monitoringContent.setAlpha(0f);
+                monitoringContent.animate()
+                    .translationX(0f)
+                    .alpha(1f)
+                    .setDuration(300)
+                    .setInterpolator(new DecelerateInterpolator())
+                    .withEndAction(() -> {
+                        // Iniciar o serviço de monitoramento
+                        startLocationMonitoring();
+                    })
+                    .start();
+            })
+            .start();
+    }
+
+    // Atualizar o listener do botão one time use
+    private void setupRouteOptionsListeners(View routeOptions) {
+        MaterialButton btnOneTime = routeOptions.findViewById(R.id.btn_one_time);
+        MaterialButton btnAddRoute = routeOptions.findViewById(R.id.btn_add_route);
+        
+        btnOneTime.setOnClickListener(v -> {
+            v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
+            showMonitoringContent();
+        });
+        
+        btnAddRoute.setOnClickListener(v -> {
+            v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.scale_click));
+            // ... código existente para add route ...
+        });
+    }
+
+    private void startLocationMonitoring() {
+        // Criar intent com os extras necessários
+        Intent serviceIntent = new Intent(this, LocationMonitoringService.class);
+        serviceIntent.putExtra("destination", selectedLocation);
+        serviceIntent.putExtra("radius", selectedRadius);
+        
+        // Log para debug
+        android.util.Log.d("MapActivity", 
+            "Starting monitoring service with radius: " + selectedRadius + 
+            " at location: " + selectedLocation.toString());
+        
+        // Iniciar o serviço com base na versão do Android
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
+        
+        // Mostrar toast para confirmar
+        Toast.makeText(this, "Location monitoring started", Toast.LENGTH_SHORT).show();
+    }
+
+    private void stopLocationMonitoring() {
+        Intent serviceIntent = new Intent(this, LocationMonitoringService.class);
+        serviceIntent.setAction("ACTION_STOP_MONITORING");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
     }
 } 
